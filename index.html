@@ -70,6 +70,29 @@
     .flash-correct { animation: flashGreen 0.35s ease both !important; background: #2ecc71 !important; }
     .flash-wrong   { animation: flashRed   0.35s ease both !important; background: #e74c3c !important; }
     .overlay-pop   { animation: overlayPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+    /* ─── Tablet scaling (10-inch and larger) ─── */
+    @media (min-width: 768px) {
+      .ps-title       { font-size: 72px !important; }
+      .profile-card   { min-width: 280px !important; min-height: 340px !important; }
+      .profile-emoji  { font-size: 120px !important; }
+      .profile-label  { font-size: 42px !important; }
+
+      .topbar-text    { font-size: 26px !important; }
+      .level-btn      { width: 48px !important; height: 48px !important; min-width: 48px !important; font-size: 28px !important; }
+      .progress-track { height: 12px !important; }
+
+      .count-question { font-size: 40px !important; }
+      .emoji-grid-item { font-size: 48px !important; }
+      .addition-plus   { font-size: 64px !important; }
+
+      .equation-text { font-size: 80px !important; }
+      .answer-btn     { font-size: 32px !important; min-height: 100px !important; min-width: 130px !important; }
+
+      .overlay-text   { font-size: 56px !important; }
+      .levelup-emoji  { font-size: 120px !important; }
+      .levelup-title  { font-size: 90px !important; }
+    }
   </style>
 </head>
 <body>
@@ -297,8 +320,8 @@
       return (
         <div style={overlay}>
           <div className="overlay-pop" style={{ textAlign:'center' }}>
-            <div style={{ fontSize:'100px', lineHeight:1 }}>🚀</div>
-            <div style={title}>עלית לרמה {newLevel}!</div>
+            <div className="levelup-emoji" style={{ fontSize:'100px', lineHeight:1 }}>🚀</div>
+            <div className="levelup-title" style={title}>עלית לרמה {newLevel}!</div>
             <div style={{ display:'flex', justifyContent:'center', gap:'6px' }}>
               {[0,1,2].map(i => (
                 <span key={i} style={{ fontSize:'56px', display:'inline-block', opacity:0, animation:`starPop 0.4s cubic-bezier(0.34,1.56,0.64,1) ${0.3+i*0.22}s both` }}>⭐</span>
@@ -317,7 +340,7 @@
                       : '#2ecc71';
       const trackBg   = wrongStreak >= 1 && !barFlash ? 'rgba(231,76,60,0.28)' : 'rgba(255,255,255,0.2)';
       return (
-        <div style={{ width:'100%', maxWidth:'560px', height:'8px', background:trackBg, borderRadius:'4px', overflow:'hidden', marginBottom:'6px', transition:'background 0.3s ease' }}>
+        <div className="progress-track" style={{ width:'100%', maxWidth:'560px', height:'8px', background:trackBg, borderRadius:'4px', overflow:'hidden', marginBottom:'6px', transition:'background 0.3s ease' }}>
           <div style={{ height:'100%', width:`${pct}%`, background:fillColor, borderRadius:'4px', transition:'width 0.4s ease, background 0.3s ease', boxShadow: pct>0 ? `0 0 8px ${fillColor}` : 'none' }} />
         </div>
       );
@@ -336,14 +359,14 @@
           <button style={backBtn} onClick={onBack}>← חזור</button>
           <div style={{ display:'flex', alignItems:'center', gap:'4px', flexShrink:0 }}>
             <span style={{ fontSize:'22px', lineHeight:1 }}>{profileEmoji}</span>
-            <span style={{ fontSize:'clamp(13px,2.8vw,17px)', fontWeight:'bold', color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.3)' }}>{profileName}</span>
+            <span className="topbar-text" style={{ fontSize:'clamp(13px,2.8vw,17px)', fontWeight:'bold', color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.3)' }}>{profileName}</span>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:'4px', direction:'ltr', flexShrink:0 }}>
-            <button style={lvlBtn(level<=1)} onClick={onLevelDown} disabled={level<=1}>−</button>
-            <span style={{ fontSize:'clamp(13px,2.8vw,17px)', fontWeight:'bold', color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.3)', minWidth:'54px', textAlign:'center' }}>רמה {level}</span>
-            <button style={lvlBtn(level>=10)} onClick={onLevelUp} disabled={level>=10}>+</button>
+            <button className="level-btn" style={lvlBtn(level<=1)} onClick={onLevelDown} disabled={level<=1}>−</button>
+            <span className="topbar-text" style={{ fontSize:'clamp(13px,2.8vw,17px)', fontWeight:'bold', color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.3)', minWidth:'54px', textAlign:'center' }}>רמה {level}</span>
+            <button className="level-btn" style={lvlBtn(level>=10)} onClick={onLevelUp} disabled={level>=10}>+</button>
           </div>
-          <span style={starsBadge}>⭐ {stars}</span>
+          <span className="topbar-text" style={starsBadge}>⭐ {stars}</span>
         </div>
       );
     }
@@ -353,7 +376,7 @@
       const fontSize = n <= 6 ? '52px' : n <= 10 ? '40px' : '32px';
       return (
         <div style={{ display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'6px', maxWidth:'220px', padding:'14px', background:'rgba(255,255,255,0.15)', borderRadius:'20px', minHeight:'90px', alignContent:'center' }}>
-          {Array.from({ length: n }).map((_, i) => <span key={i} style={{ fontSize, lineHeight:1 }}>{emoji}</span>)}
+          {Array.from({ length: n }).map((_, i) => <span key={i} className="emoji-grid-item" style={{ fontSize, lineHeight:1 }}>{emoji}</span>)}
         </div>
       );
     }
@@ -363,7 +386,7 @@
       return (
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'10px', marginBottom:'16px', flexWrap:'wrap' }}>
           <EmojiGrid n={n} emoji="🦕" />
-          <span style={{ fontSize:'48px', fontWeight:'bold', lineHeight:1, color:'#fff', textShadow:'0 2px 10px rgba(0,0,0,0.3)', filter:'drop-shadow(0 0 8px rgba(255,220,0,0.6))' }}>➕</span>
+          <span className="addition-plus" style={{ fontSize:'48px', fontWeight:'bold', lineHeight:1, color:'#fff', textShadow:'0 2px 10px rgba(0,0,0,0.3)', filter:'drop-shadow(0 0 8px rgba(255,220,0,0.6))' }}>➕</span>
           <EmojiGrid n={m} emoji={animal} />
         </div>
       );
@@ -373,7 +396,7 @@
     function EquationDisplay({ a, b, op }) {
       return (
         <div style={{ background:'rgba(255,255,255,0.18)', borderRadius:'28px', padding:'24px 40px', marginBottom:'20px', textAlign:'center' }}>
-          <span style={{ fontSize:'clamp(64px,14vw,96px)', fontWeight:'bold', color:'#fff', textShadow:'0 3px 12px rgba(0,0,0,0.25)', letterSpacing:'4px', lineHeight:1.1, direction:'ltr', unicodeBidi:'bidi-override' }}>{a} {op} {b} = ?</span>
+          <span className="equation-text" style={{ fontSize:'clamp(64px,14vw,96px)', fontWeight:'bold', color:'#fff', textShadow:'0 3px 12px rgba(0,0,0,0.25)', letterSpacing:'4px', lineHeight:1.1, direction:'ltr', unicodeBidi:'bidi-override' }}>{a} {op} {b} = ?</span>
         </div>
       );
     }
@@ -407,7 +430,7 @@
       };
 
       return (
-        <button style={btn} className={flashClass} onClick={handleClick}
+        <button style={btn} className={`answer-btn ${flashClass}`} onClick={handleClick}
           onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
           onTouchStart={() => setHovered(true)}  onTouchEnd={() => setHovered(false)}>
           {label}
@@ -434,7 +457,7 @@
         <div style={{ position:'fixed', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background: type==='correct'?'rgba(46,204,113,0.72)':'rgba(231,76,60,0.70)', zIndex:100, backdropFilter:'blur(4px)' }}>
           <div className="overlay-pop" style={{ textAlign:'center' }}>
             <div style={{ fontSize:'90px', lineHeight:1 }}>{type==='correct'?'🎉':'😔'}</div>
-            <div style={{ fontSize:'clamp(28px,7vw,52px)', fontWeight:'bold', color:'#fff', textShadow:'0 2px 10px rgba(0,0,0,0.3)', fontFamily:'Varela Round,sans-serif', marginTop:'12px' }}>
+            <div className="overlay-text" style={{ fontSize:'clamp(28px,7vw,52px)', fontWeight:'bold', color:'#fff', textShadow:'0 2px 10px rgba(0,0,0,0.3)', fontFamily:'Varela Round,sans-serif', marginTop:'12px' }}>
               {type==='correct' ? correctMsg : 'נסה שוב!'}
             </div>
           </div>
@@ -523,7 +546,7 @@
             ? <AdditionGrid n={g.question.n} m={g.question.m} animal={g.question.animal} />
             : <EmojiGrid n={g.question.n} />
           }
-          <p style={qText}>{isAdd ? 'כמה חיות יש בסך הכל?' : 'כמה דינוזאורים יש?'}</p>
+          <p className="count-question" style={qText}>{isAdd ? 'כמה חיות יש בסך הכל?' : 'כמה דינוזאורים יש?'}</p>
           <AnswerButtons answers={g.question.answers} correctAnswer={g.question.answer}
             onAnswer={g.handleAnswer} disabled={g.answering} qid={g.qid} colors={BOY_COLORS} />
         </div>
@@ -563,12 +586,12 @@
         border:`3px solid ${colors.border}`, padding:'24px 16px', userSelect:'none',
       };
       return (
-        <div style={card} onClick={onClick}
+        <div className="profile-card" style={card} onClick={onClick}
           onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}
           onTouchStart={()=>setHovered(true)} onTouchEnd={()=>{setHovered(false);onClick();}}
           role="button" tabIndex={0} onKeyDown={(e)=>e.key==='Enter'&&onClick()} aria-label={label}>
-          <span style={{ fontSize:'90px', lineHeight:1, display:'block', animation:'bounce 1.6s ease-in-out infinite', marginBottom:'18px' }}>{emoji}</span>
-          <span style={{ fontSize:'clamp(22px,5vw,32px)', fontWeight:'bold', color:colors.text, textShadow:'0 1px 4px rgba(0,0,0,0.15)', letterSpacing:'1px' }}>{label}</span>
+          <span className="profile-emoji" style={{ fontSize:'90px', lineHeight:1, display:'block', animation:'bounce 1.6s ease-in-out infinite', marginBottom:'18px' }}>{emoji}</span>
+          <span className="profile-label" style={{ fontSize:'clamp(22px,5vw,32px)', fontWeight:'bold', color:colors.text, textShadow:'0 1px 4px rgba(0,0,0,0.15)', letterSpacing:'1px' }}>{label}</span>
         </div>
       );
     }
@@ -577,7 +600,7 @@
     function ProfileSelection({ onSelect }) {
       return (
         <div style={s.screen}>
-          <h1 style={s.title}>מי משחק היום? 🎮</h1>
+          <h1 className="ps-title" style={s.title}>מי משחק היום? 🎮</h1>
           <div style={{ display:'flex', flexDirection:'row', gap:'clamp(20px,5vw,48px)', alignItems:'center', justifyContent:'center', flexWrap:'wrap' }}>
             <ProfileCard emoji="🦕" label="גולן"
               colors={{ bg:'linear-gradient(145deg,#a8f08a,#f9f871)', border:'#7ecb50', shadow:'rgba(126,203,80,0.45)', text:'#3a6b1a' }}
