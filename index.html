@@ -66,7 +66,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useRef } = React;
 
     /* ─── Shared styles ─── */
     const s = {
@@ -98,12 +98,17 @@
     const BOY_COLORS  = ['#ff9f43', '#54a0ff', '#5f27cd'];
     const GIRL_COLORS = ['#ff6eb4', '#c44dff', '#ff85c2', '#9b59b6'];
 
+    // Levels 1–2: single group counting
     const COUNT_LEVELS = {
-      1: { min: 1, max: 5  },
-      2: { min: 1, max: 8  },
-      3: { min: 1, max: 10 },
-      4: { min: 2, max: 12 },
-      5: { min: 3, max: 15 },
+      1: { min: 1, max: 5 },
+      2: { min: 1, max: 8 },
+    };
+
+    // Levels 3–5: two-group visual addition
+    const ADD_LEVELS = {
+      3: { nMin: 1, nMax: 4, mMin: 1, mMax: 4, maxSum: 8  },
+      4: { nMin: 1, nMax: 6, mMin: 1, mMax: 5, maxSum: 10 },
+      5: { nMin: 2, nMax: 7, mMin: 2, mMax: 6, maxSum: 12 },
     };
 
     const MATH_LEVELS = {
@@ -113,6 +118,8 @@
       4: { min: 1, max: 20, maxSum: null, sub: true  },
       5: { min: 1, max: 30, maxSum: null, sub: true  },
     };
+
+    const EXTRA_ANIMALS = ['🐘', '🦁', '🐶', '🐸', '🐯', '🦊', '🐨', '🦒'];
 
     /* ─── Helpers ─── */
     function randInt(min, max) {
@@ -128,15 +135,30 @@
     }
 
     function generateCountQuestion(level) {
-      const { min, max } = COUNT_LEVELS[level];
-      const n = randInt(min, max);
+      if (level <= 2) {
+        const { min, max } = COUNT_LEVELS[level];
+        const n = randInt(min, max);
+        const wrongSet = new Set();
+        while (wrongSet.size < 2) {
+          const offset = randInt(1, 4) * (Math.random() < 0.5 ? 1 : -1);
+          const c = n + offset;
+          if (c > 0 && c !== n && !wrongSet.has(c)) wrongSet.add(c);
+        }
+        return { mode: 'count', n, answer: n, answers: [n, ...wrongSet].sort(() => Math.random() - 0.5) };
+      }
+      // levels 3–5: two groups
+      const { nMin, nMax, mMin, mMax, maxSum } = ADD_LEVELS[level];
+      const n = randInt(nMin, nMax);
+      const m = randInt(mMin, Math.min(mMax, maxSum - n));
+      const answer = n + m;
+      const animal = EXTRA_ANIMALS[randInt(0, EXTRA_ANIMALS.length - 1)];
       const wrongSet = new Set();
       while (wrongSet.size < 2) {
         const offset = randInt(1, 4) * (Math.random() < 0.5 ? 1 : -1);
-        const c = n + offset;
-        if (c > 0 && c !== n && !wrongSet.has(c)) wrongSet.add(c);
+        const c = answer + offset;
+        if (c > 0 && c !== answer && !wrongSet.has(c)) wrongSet.add(c);
       }
-      return { n, answers: [n, ...wrongSet].sort(() => Math.random() - 0.5) };
+      return { mode: 'add', n, m, animal, answer, answers: [answer, ...wrongSet].sort(() => Math.random() - 0.5) };
     }
 
     function generateMathQuestion(level) {
@@ -165,46 +187,91 @@
     }
 
     /* ─── TopBar ─── */
-    function TopBar({ stars, level, onBack }) {
+    function TopBar({ stars, level, onBack, onLevelDown, onLevelUp, accentColor, profileEmoji, profileName }) {
       const bar = {
-        width: '100%', maxWidth: '560px',
+        width: '100%', maxWidth: '620px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: '14px', padding: '0 4px',
+        marginBottom: '14px', padding: '0 4px', gap: '6px',
       };
       const backBtn = {
-        padding: '10px 20px', borderRadius: '50px', border: 'none',
+        padding: '8px 14px', borderRadius: '50px', border: 'none',
         background: 'rgba(255,255,255,0.28)', color: '#fff',
-        fontSize: '18px', fontFamily: 'inherit', fontWeight: 'bold',
-        cursor: 'pointer', minHeight: '48px',
+        fontSize: '16px', fontFamily: 'inherit', fontWeight: 'bold',
+        cursor: 'pointer', minHeight: '44px', whiteSpace: 'nowrap', flexShrink: 0,
       };
-      const badge = {
-        fontSize: 'clamp(16px, 3.5vw, 22px)', fontWeight: 'bold', color: '#fff',
+      const starsBadge = {
+        fontSize: 'clamp(14px, 3vw, 20px)', fontWeight: 'bold', color: '#fff',
         textShadow: '0 1px 4px rgba(0,0,0,0.3)',
-        background: 'rgba(255,255,255,0.18)', borderRadius: '20px', padding: '6px 14px',
+        background: 'rgba(255,255,255,0.18)', borderRadius: '20px',
+        padding: '5px 12px', whiteSpace: 'nowrap', flexShrink: 0,
       };
+
+      function lvlBtn(disabled) {
+        return {
+          width: '36px', height: '36px', minWidth: '36px', borderRadius: '50%',
+          border: `2.5px solid ${disabled ? 'rgba(255,255,255,0.25)' : accentColor}`,
+          background: disabled ? 'rgba(255,255,255,0.1)' : '#fff',
+          color: disabled ? 'rgba(255,255,255,0.35)' : accentColor,
+          fontSize: '22px', lineHeight: 1, fontFamily: 'inherit', fontWeight: 'bold',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 0,
+        };
+      }
+
       return (
         <div style={bar}>
           <button style={backBtn} onClick={onBack}>← חזור</button>
-          <span style={badge}>⭐ {stars}</span>
-          <span style={badge}>רמה {level}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+            <span style={{ fontSize: '22px', lineHeight: 1 }}>{profileEmoji}</span>
+            <span style={{ fontSize: 'clamp(13px, 2.8vw, 17px)', fontWeight: 'bold', color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>{profileName}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', direction: 'ltr', flexShrink: 0 }}>
+            <button style={lvlBtn(level <= 1)} onClick={onLevelDown} disabled={level <= 1}>−</button>
+            <span style={{ fontSize: 'clamp(13px, 2.8vw, 17px)', fontWeight: 'bold', color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.3)', minWidth: '54px', textAlign: 'center' }}>
+              רמה {level}
+            </span>
+            <button style={lvlBtn(level >= 5)} onClick={onLevelUp} disabled={level >= 5}>+</button>
+          </div>
+          <span style={starsBadge}>⭐ {stars}</span>
         </div>
       );
     }
 
     /* ─── EmojiGrid ─── */
-    function EmojiGrid({ n }) {
+    function EmojiGrid({ n, emoji = '🦕' }) {
       const fontSize = n <= 6 ? '52px' : n <= 10 ? '40px' : '32px';
       const grid = {
         display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
-        gap: '6px', maxWidth: '420px', margin: '0 auto 16px',
-        padding: '16px', background: 'rgba(255,255,255,0.15)',
-        borderRadius: '24px', minHeight: '110px', alignContent: 'center',
+        gap: '6px', maxWidth: '220px',
+        padding: '14px', background: 'rgba(255,255,255,0.15)',
+        borderRadius: '20px', minHeight: '90px', alignContent: 'center',
       };
       return (
         <div style={grid}>
           {Array.from({ length: n }).map((_, i) => (
-            <span key={i} style={{ fontSize, lineHeight: 1 }}>🦕</span>
+            <span key={i} style={{ fontSize, lineHeight: 1 }}>{emoji}</span>
           ))}
+        </div>
+      );
+    }
+
+    /* ─── AdditionGrid ─── */
+    function AdditionGrid({ n, m, animal }) {
+      const wrap = {
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        gap: '10px', marginBottom: '16px', flexWrap: 'wrap',
+      };
+      const plus = {
+        fontSize: '48px', fontWeight: 'bold', lineHeight: 1,
+        color: '#fff', textShadow: '0 2px 10px rgba(0,0,0,0.3)',
+        filter: 'drop-shadow(0 0 8px rgba(255,220,0,0.6))',
+      };
+      return (
+        <div style={wrap}>
+          <EmojiGrid n={n} emoji="🦕" />
+          <span style={plus}>➕</span>
+          <EmojiGrid n={m} emoji={animal} />
         </div>
       );
     }
@@ -212,19 +279,12 @@
     /* ─── EquationDisplay ─── */
     function EquationDisplay({ a, b, op }) {
       const box = {
-        background: 'rgba(255,255,255,0.18)',
-        borderRadius: '28px',
-        padding: '24px 40px',
-        marginBottom: '20px',
-        textAlign: 'center',
+        background: 'rgba(255,255,255,0.18)', borderRadius: '28px',
+        padding: '24px 40px', marginBottom: '20px', textAlign: 'center',
       };
       const eq = {
-        fontSize: 'clamp(64px, 14vw, 96px)',
-        fontWeight: 'bold',
-        color: '#fff',
-        textShadow: '0 3px 12px rgba(0,0,0,0.25)',
-        letterSpacing: '4px',
-        lineHeight: 1.1,
+        fontSize: 'clamp(64px, 14vw, 96px)', fontWeight: 'bold', color: '#fff',
+        textShadow: '0 3px 12px rgba(0,0,0,0.25)', letterSpacing: '4px', lineHeight: 1.1,
       };
       return (
         <div style={box}>
@@ -245,12 +305,10 @@
 
       const btn = {
         minWidth: '80px', minHeight: '70px', borderRadius: '20px',
-        border: 'none', background: color,
-        color: '#fff', fontSize: 'clamp(26px, 6vw, 38px)',
-        fontFamily: 'inherit', fontWeight: 'bold',
+        border: 'none', background: color, color: '#fff',
+        fontSize: 'clamp(26px, 6vw, 38px)', fontFamily: 'inherit', fontWeight: 'bold',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
-        opacity: disabled ? 0.85 : 1,
+        boxShadow: '0 4px 14px rgba(0,0,0,0.2)', opacity: disabled ? 0.85 : 1,
       };
 
       return (
@@ -314,6 +372,7 @@
       const [qid,           setQid]           = useState(0);
       const [overlay,       setOverlay]       = useState(null);
       const [answering,     setAnswering]     = useState(false);
+      const timerRef = useRef(null);
 
       useEffect(() => {
         localStorage.setItem(GOLAN_KEY, JSON.stringify({ level, totalStars, correctStreak, wrongStreak }));
@@ -321,6 +380,19 @@
 
       function next(nextLevel) {
         setQuestion(generateCountQuestion(nextLevel));
+        setQid(id => id + 1);
+        setOverlay(null);
+        setAnswering(false);
+      }
+
+      function handleLevelChange(delta) {
+        const newLevel = Math.max(1, Math.min(5, level + delta));
+        if (newLevel === level) return;
+        if (timerRef.current) clearTimeout(timerRef.current);
+        setLevel(newLevel);
+        setCorrectStreak(0);
+        setWrongStreak(0);
+        setQuestion(generateCountQuestion(newLevel));
         setQid(id => id + 1);
         setOverlay(null);
         setAnswering(false);
@@ -338,7 +410,7 @@
           setWrongStreak(0);
           setLevel(nextLevel);
           setOverlay('correct');
-          setTimeout(() => next(nextLevel), 1500);
+          timerRef.current = setTimeout(() => next(nextLevel), 1500);
         } else {
           const newWS = wrongStreak + 1;
           let nextLevel = level, nextWS = newWS;
@@ -347,30 +419,33 @@
           setWrongStreak(nextWS);
           setLevel(nextLevel);
           setOverlay('wrong');
-          setTimeout(() => next(nextLevel), 1000);
+          timerRef.current = setTimeout(() => next(nextLevel), 1000);
         }
       }
 
-      const screen = { ...s.screen, justifyContent: 'flex-start', paddingTop: '20px', gap: '10px' };
+      const isAdd = question.mode === 'add';
       const qText = {
-        fontSize: 'clamp(20px, 4.5vw, 30px)', fontWeight: 'bold',
-        color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.25)',
-        textAlign: 'center', margin: '4px 0 6px',
+        fontSize: 'clamp(20px, 4.5vw, 28px)', fontWeight: 'bold', color: '#fff',
+        textShadow: '0 2px 8px rgba(0,0,0,0.25)', textAlign: 'center', margin: '4px 0 6px',
       };
+      const screen = { ...s.screen, justifyContent: 'flex-start', paddingTop: '20px', gap: '10px' };
 
       return (
         <div style={screen}>
           <Overlay type={overlay} />
-          <TopBar stars={totalStars} level={level} onBack={onBack} />
-          <EmojiGrid n={question.n} />
-          <p style={qText}>כמה דינוזאורים יש?</p>
+          <TopBar
+            stars={totalStars} level={level} onBack={onBack}
+            onLevelDown={() => handleLevelChange(-1)} onLevelUp={() => handleLevelChange(1)}
+            accentColor="#7ecb50" profileEmoji="🦕" profileName="גולן"
+          />
+          {isAdd
+            ? <AdditionGrid n={question.n} m={question.m} animal={question.animal} />
+            : <EmojiGrid n={question.n} />
+          }
+          <p style={qText}>{isAdd ? 'כמה חיות יש בסך הכל?' : 'כמה דינוזאורים יש?'}</p>
           <AnswerButtons
-            answers={question.answers}
-            correctAnswer={question.n}
-            onAnswer={handleAnswer}
-            disabled={answering}
-            qid={qid}
-            colors={BOY_COLORS}
+            answers={question.answers} correctAnswer={question.answer}
+            onAnswer={handleAnswer} disabled={answering} qid={qid} colors={BOY_COLORS}
           />
         </div>
       );
@@ -387,6 +462,7 @@
       const [qid,           setQid]           = useState(0);
       const [overlay,       setOverlay]       = useState(null);
       const [answering,     setAnswering]     = useState(false);
+      const timerRef = useRef(null);
 
       useEffect(() => {
         localStorage.setItem(PALEG_KEY, JSON.stringify({ level, totalStars, correctStreak, wrongStreak }));
@@ -394,6 +470,19 @@
 
       function next(nextLevel) {
         setQuestion(generateMathQuestion(nextLevel));
+        setQid(id => id + 1);
+        setOverlay(null);
+        setAnswering(false);
+      }
+
+      function handleLevelChange(delta) {
+        const newLevel = Math.max(1, Math.min(5, level + delta));
+        if (newLevel === level) return;
+        if (timerRef.current) clearTimeout(timerRef.current);
+        setLevel(newLevel);
+        setCorrectStreak(0);
+        setWrongStreak(0);
+        setQuestion(generateMathQuestion(newLevel));
         setQid(id => id + 1);
         setOverlay(null);
         setAnswering(false);
@@ -411,7 +500,7 @@
           setWrongStreak(0);
           setLevel(nextLevel);
           setOverlay('correct');
-          setTimeout(() => next(nextLevel), 1500);
+          timerRef.current = setTimeout(() => next(nextLevel), 1500);
         } else {
           const newWS = wrongStreak + 1;
           let nextLevel = level, nextWS = newWS;
@@ -420,7 +509,7 @@
           setWrongStreak(nextWS);
           setLevel(nextLevel);
           setOverlay('wrong');
-          setTimeout(() => next(nextLevel), 1000);
+          timerRef.current = setTimeout(() => next(nextLevel), 1000);
         }
       }
 
@@ -429,15 +518,15 @@
       return (
         <div style={screen}>
           <Overlay type={overlay} correctMsg="כל הכבוד פלג!" />
-          <TopBar stars={totalStars} level={level} onBack={onBack} />
+          <TopBar
+            stars={totalStars} level={level} onBack={onBack}
+            onLevelDown={() => handleLevelChange(-1)} onLevelUp={() => handleLevelChange(1)}
+            accentColor="#c44daa" profileEmoji="👸" profileName="פלג"
+          />
           <EquationDisplay a={question.a} b={question.b} op={question.op} />
           <AnswerButtons
-            answers={question.answers}
-            correctAnswer={question.answer}
-            onAnswer={handleAnswer}
-            disabled={answering}
-            qid={qid}
-            colors={GIRL_COLORS}
+            answers={question.answers} correctAnswer={question.answer}
+            onAnswer={handleAnswer} disabled={answering} qid={qid} colors={GIRL_COLORS}
           />
         </div>
       );
@@ -447,28 +536,23 @@
     function ProfileCard({ emoji, label, colors, onClick }) {
       const [hovered, setHovered] = useState(false);
       const card = {
-        minWidth: '200px', minHeight: '260px',
-        width: 'clamp(200px, 40vw, 260px)',
+        minWidth: '200px', minHeight: '260px', width: 'clamp(200px, 40vw, 260px)',
         borderRadius: '28px', background: colors.bg,
         boxShadow: hovered
           ? `0 16px 48px ${colors.shadow}, 0 4px 16px rgba(0,0,0,0.18)`
           : `0 8px 28px ${colors.shadow}, 0 2px 8px rgba(0,0,0,0.12)`,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        cursor: 'pointer',
-        transform: hovered ? 'scale(1.07)' : 'scale(1)',
+        cursor: 'pointer', transform: hovered ? 'scale(1.07)' : 'scale(1)',
         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
         border: `3px solid ${colors.border}`, padding: '24px 16px', userSelect: 'none',
       };
       return (
         <div
-          style={card}
-          onClick={onClick}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
+          style={card} onClick={onClick}
+          onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
           onTouchStart={() => setHovered(true)}
           onTouchEnd={() => { setHovered(false); onClick(); }}
-          role="button" tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && onClick()}
+          role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onClick()}
           aria-label={label}
         >
           <span style={{ fontSize: '90px', lineHeight: 1, display: 'block', animation: 'bounce 1.6s ease-in-out infinite', marginBottom: '18px' }}>{emoji}</span>
