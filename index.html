@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>משחק חשבון לילדים</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Varela+Round&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Varela Round', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #ff9a3c 0%, #ff6b6b 35%, #c44dff 70%, #7b5ea7 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+    }
+
+    #root {
+      width: 100%;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0px); }
+      50%       { transform: translateY(-14px); }
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50%       { transform: scale(1.08); }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    /* ─── Shared styles ─── */
+    const s = {
+      screen: {
+        width: '100%',
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px 16px',
+        animation: 'fadeInUp 0.4s ease both',
+      },
+      title: {
+        fontSize: 'clamp(28px, 6vw, 48px)',
+        fontWeight: 'bold',
+        color: '#fff',
+        textShadow: '0 3px 10px rgba(0,0,0,0.25)',
+        marginBottom: '40px',
+        textAlign: 'center',
+        letterSpacing: '1px',
+      },
+    };
+
+    /* ─── ProfileCard ─── */
+    function ProfileCard({ emoji, label, colors, onClick }) {
+      const [hovered, setHovered] = useState(false);
+
+      const cardStyle = {
+        minWidth: '200px',
+        minHeight: '260px',
+        width: 'clamp(200px, 40vw, 260px)',
+        borderRadius: '28px',
+        background: colors.bg,
+        boxShadow: hovered
+          ? `0 16px 48px ${colors.shadow}, 0 4px 16px rgba(0,0,0,0.18)`
+          : `0 8px 28px ${colors.shadow}, 0 2px 8px rgba(0,0,0,0.12)`,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transform: hovered ? 'scale(1.07)' : 'scale(1)',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+        border: `3px solid ${colors.border}`,
+        padding: '24px 16px',
+        userSelect: 'none',
+        minHeight: '80px', // tablet tap target
+      };
+
+      const emojiStyle = {
+        fontSize: '90px',
+        lineHeight: 1,
+        display: 'block',
+        animation: 'bounce 1.6s ease-in-out infinite',
+        marginBottom: '18px',
+      };
+
+      const labelStyle = {
+        fontSize: 'clamp(22px, 5vw, 32px)',
+        fontWeight: 'bold',
+        color: colors.text,
+        textShadow: '0 1px 4px rgba(0,0,0,0.15)',
+        letterSpacing: '1px',
+      };
+
+      return (
+        <div
+          style={cardStyle}
+          onClick={onClick}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onTouchStart={() => setHovered(true)}
+          onTouchEnd={() => { setHovered(false); onClick(); }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && onClick()}
+          aria-label={label}
+        >
+          <span style={emojiStyle}>{emoji}</span>
+          <span style={labelStyle}>{label}</span>
+        </div>
+      );
+    }
+
+    /* ─── ProfileSelection ─── */
+    function ProfileSelection({ onSelect }) {
+      const cardsContainerStyle = {
+        display: 'flex',
+        flexDirection: 'row',
+        gap: 'clamp(20px, 5vw, 48px)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexWrap: 'wrap',
+      };
+
+      return (
+        <div style={s.screen}>
+          <h1 style={s.title}>מי משחק היום? 🎮</h1>
+          <div style={cardsContainerStyle}>
+            <ProfileCard
+              emoji="🦕"
+              label="הילד"
+              colors={{
+                bg: 'linear-gradient(145deg, #a8f08a, #f9f871)',
+                border: '#7ecb50',
+                shadow: 'rgba(126,203,80,0.45)',
+                text: '#3a6b1a',
+              }}
+              onClick={() => onSelect('boy')}
+            />
+            <ProfileCard
+              emoji="👸"
+              label="הילדה"
+              colors={{
+                bg: 'linear-gradient(145deg, #ff85c2, #d966ff)',
+                border: '#c44daa',
+                shadow: 'rgba(196,77,170,0.45)',
+                text: '#fff',
+              }}
+              onClick={() => onSelect('girl')}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    /* ─── PlaceholderGame ─── */
+    function PlaceholderGame({ profile, onBack }) {
+      const isBoy = profile === 'boy';
+
+      const containerStyle = {
+        ...s.screen,
+        gap: '28px',
+      };
+
+      const emojiStyle = {
+        fontSize: '100px',
+        lineHeight: 1,
+        animation: 'pulse 1.8s ease-in-out infinite',
+        display: 'block',
+        textAlign: 'center',
+      };
+
+      const messageStyle = {
+        fontSize: 'clamp(22px, 5vw, 34px)',
+        color: '#fff',
+        textShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        textAlign: 'center',
+        fontWeight: 'bold',
+      };
+
+      const backBtnStyle = {
+        marginTop: '12px',
+        padding: '16px 36px',
+        borderRadius: '50px',
+        border: 'none',
+        background: 'rgba(255,255,255,0.25)',
+        color: '#fff',
+        fontSize: '22px',
+        fontFamily: 'inherit',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        backdropFilter: 'blur(6px)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+        minHeight: '80px',
+        minWidth: '160px',
+        transition: 'background 0.2s',
+        letterSpacing: '1px',
+      };
+
+      return (
+        <div style={containerStyle}>
+          <span style={emojiStyle}>{isBoy ? '🦕' : '👸'}</span>
+          <p style={messageStyle}>שלום! המשחק בקרוב...</p>
+          <button
+            style={backBtnStyle}
+            onClick={onBack}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.4)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
+          >
+            ← חזור
+          </button>
+        </div>
+      );
+    }
+
+    /* ─── App ─── */
+    function App() {
+      const [profile, setProfile] = useState(null); // null | 'boy' | 'girl'
+
+      if (profile === null) {
+        return <ProfileSelection onSelect={setProfile} />;
+      }
+
+      return <PlaceholderGame profile={profile} onBack={() => setProfile(null)} />;
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
