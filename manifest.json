@@ -1,0 +1,28 @@
+{
+  "name": "משחק חשבון לילדים",
+  "short_name": "חשבון",
+  "description": "משחק חשבון אינטראקטיבי לילדים",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone", "browser"],
+  "orientation": "any",
+  "lang": "he",
+  "dir": "rtl",
+  "background_color": "#7b5ea7",
+  "theme_color": "#ff6b6b",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20512%20512%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%2296%22%20fill%3D%22%23ff6b6b%22%2F%3E%3Ctext%20x%3D%22256%22%20y%3D%22340%22%20font-size%3D%22280%22%20text-anchor%3D%22middle%22%3E%F0%9F%A7%AE%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20512%20512%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20fill%3D%22%23ff6b6b%22%2F%3E%3Ctext%20x%3D%22256%22%20y%3D%22340%22%20font-size%3D%22280%22%20text-anchor%3D%22middle%22%3E%F0%9F%A7%AE%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
