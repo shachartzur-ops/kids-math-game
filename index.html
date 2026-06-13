@@ -17,53 +17,57 @@
       font-family: 'Varela Round', sans-serif;
       min-height: 100vh;
       background: linear-gradient(135deg, #ff9a3c 0%, #ff6b6b 35%, #c44dff 70%, #7b5ea7 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow-x: hidden;
+      display: flex; align-items: center; justify-content: center; overflow-x: hidden;
     }
 
-    #root {
-      width: 100%;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+    #root { width: 100%; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
 
     @keyframes bounce {
       0%, 100% { transform: translateY(0px); }
       50%       { transform: translateY(-14px); }
     }
-
     @keyframes fadeInUp {
       from { opacity: 0; transform: translateY(30px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-
+    @keyframes welcomeIn {
+      from { opacity: 0; transform: scale(0.88); }
+      to   { opacity: 1; transform: scale(1); }
+    }
     @keyframes flashGreen {
       0%   { background: #2ecc71; transform: scale(1.13); }
       100% { background: #2ecc71; transform: scale(1); }
     }
-
     @keyframes flashRed {
       0%   { background: #e74c3c; transform: scale(0.93); }
       100% { background: #e74c3c; transform: scale(1); }
     }
-
     @keyframes overlayPop {
       0%   { opacity: 0; transform: scale(0.5); }
       65%  { transform: scale(1.12); }
       100% { opacity: 1; transform: scale(1); }
     }
+    @keyframes rainbowShift {
+      0%   { filter: hue-rotate(0deg); }
+      100% { filter: hue-rotate(360deg); }
+    }
+    @keyframes starPop {
+      0%   { opacity: 0; transform: scale(0) rotate(-30deg); }
+      100% { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+    @keyframes confettiFly {
+      0%   { transform: translate(0,0) rotate(0deg); opacity: 1; }
+      100% { transform: translate(var(--dx),var(--dy)) rotate(720deg); opacity: 0; }
+    }
 
     .flash-correct { animation: flashGreen 0.35s ease both !important; background: #2ecc71 !important; }
     .flash-wrong   { animation: flashRed   0.35s ease both !important; background: #e74c3c !important; }
-    .overlay-pop   { animation: overlayPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    .overlay-pop   { animation: overlayPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
   </style>
 </head>
 <body>
   <div id="root"></div>
+  <div id="confetti-root" style="pointer-events:none;position:fixed;inset:0;z-index:200;overflow:hidden;"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
@@ -71,23 +75,14 @@
     /* ─── Shared styles ─── */
     const s = {
       screen: {
-        width: '100%',
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px 16px',
+        width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', padding: '24px 16px',
         animation: 'fadeInUp 0.4s ease both',
       },
       title: {
-        fontSize: 'clamp(28px, 6vw, 48px)',
-        fontWeight: 'bold',
-        color: '#fff',
-        textShadow: '0 3px 10px rgba(0,0,0,0.25)',
-        marginBottom: '40px',
-        textAlign: 'center',
-        letterSpacing: '1px',
+        fontSize: 'clamp(28px, 6vw, 48px)', fontWeight: 'bold', color: '#fff',
+        textShadow: '0 3px 10px rgba(0,0,0,0.25)', marginBottom: '40px',
+        textAlign: 'center', letterSpacing: '1px',
       },
     };
 
@@ -97,141 +92,230 @@
 
     const BOY_COLORS  = ['#ff9f43', '#54a0ff', '#5f27cd'];
     const GIRL_COLORS = ['#ff6eb4', '#c44dff', '#ff85c2', '#9b59b6'];
+    const CONFETTI_COLORS = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c44dff','#ff9f43','#ff85c2','#a8f08a'];
 
-    // Levels 1–2: single group counting
-    const COUNT_LEVELS = {
-      1: { min: 1, max: 5 },
-      2: { min: 1, max: 8 },
+    const COUNT_LEVELS = { 1: { min:1, max:5 }, 2: { min:1, max:8 } };
+    const ADD_LEVELS   = {
+      3: { nMin:1, nMax:4, mMin:1, mMax:4, maxSum:8  },
+      4: { nMin:1, nMax:6, mMin:1, mMax:5, maxSum:10 },
+      5: { nMin:2, nMax:7, mMin:2, mMax:6, maxSum:12 },
     };
-
-    // Levels 3–5: two-group visual addition
-    const ADD_LEVELS = {
-      3: { nMin: 1, nMax: 4, mMin: 1, mMax: 4, maxSum: 8  },
-      4: { nMin: 1, nMax: 6, mMin: 1, mMax: 5, maxSum: 10 },
-      5: { nMin: 2, nMax: 7, mMin: 2, mMax: 6, maxSum: 12 },
-    };
-
     const MATH_LEVELS = {
-      1: { min: 1, max: 5,  maxSum: 10,  sub: false },
-      2: { min: 1, max: 10, maxSum: 15,  sub: false },
-      3: { min: 1, max: 15, maxSum: 20,  sub: false },
-      4: { min: 1, max: 20, maxSum: null, sub: true  },
-      5: { min: 1, max: 30, maxSum: null, sub: true  },
+      1: { min:1, max:5,  maxSum:10,  sub:false },
+      2: { min:1, max:10, maxSum:15,  sub:false },
+      3: { min:1, max:15, maxSum:20,  sub:false },
+      4: { min:1, max:20, maxSum:null, sub:true  },
+      5: { min:1, max:30, maxSum:null, sub:true  },
     };
+    const EXTRA_ANIMALS = ['🐘','🦁','🐶','🐸','🐯','🦊','🐨','🦒'];
 
-    const EXTRA_ANIMALS = ['🐘', '🦁', '🐶', '🐸', '🐯', '🦊', '🐨', '🦒'];
-
-    /* ─── Helpers ─── */
-    function randInt(min, max) {
-      return Math.floor(Math.random() * (max - min + 1)) + min;
+    /* ─── Audio engine ─── */
+    let _audioCtx = null;
+    function getAudioCtx() {
+      if (!_audioCtx) {
+        try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(_) {}
+      }
+      return _audioCtx;
     }
 
+    function playTone(freq, dur, vol = 0.3, type = 'sine', delay = 0) {
+      const ctx = getAudioCtx();
+      if (!ctx || ctx.state === 'suspended') return;
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = type; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
+      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + dur + 0.05);
+    }
+
+    function playCorrect() { playTone(523, 0.15, 0.3); }
+
+    function playWrong() {
+      const ctx = getAudioCtx();
+      if (!ctx || ctx.state === 'suspended') return;
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.setValueAtTime(185, ctx.currentTime + 0.06);
+      osc.frequency.setValueAtTime(205, ctx.currentTime + 0.12);
+      osc.frequency.setValueAtTime(180, ctx.currentTime + 0.18);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.28);
+    }
+
+    function playLevelUp() {
+      playTone(523, 0.15, 0.3, 'sine', 0);
+      playTone(659, 0.15, 0.3, 'sine', 0.16);
+      playTone(784, 0.22, 0.3, 'sine', 0.32);
+    }
+
+    function playWelcome() {
+      playTone(523, 0.5, 0.1, 'sine', 0);
+      playTone(659, 0.5, 0.1, 'sine', 0);
+      playTone(784, 0.5, 0.1, 'sine', 0);
+    }
+
+    /* ─── Confetti ─── */
+    function spawnConfetti() {
+      const root = document.getElementById('confetti-root');
+      if (!root) return;
+      for (let i = 0; i < 30; i++) {
+        const el = document.createElement('div');
+        const angle = Math.random() * 2 * Math.PI;
+        const dist  = 90 + Math.random() * 200;
+        const dx = Math.cos(angle) * dist, dy = Math.sin(angle) * dist;
+        const color = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+        el.style.cssText = `position:absolute;width:10px;height:10px;background:${color};` +
+          `border-radius:${Math.random()>.5?'50%':'2px'};left:calc(50% - 5px);top:calc(50% - 5px);` +
+          `--dx:${dx}px;--dy:${dy}px;animation:confettiFly 1.2s ease-out forwards;`;
+        root.appendChild(el);
+        setTimeout(() => { if (root.contains(el)) root.removeChild(el); }, 1350);
+      }
+    }
+
+    /* ─── Helpers ─── */
+    function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
     function loadProgress(key) {
-      try {
-        const raw = localStorage.getItem(key);
-        if (raw) return JSON.parse(raw);
-      } catch (_) {}
-      return { level: 1, totalStars: 0, correctStreak: 0, wrongStreak: 0 };
+      try { const r = localStorage.getItem(key); if (r) return JSON.parse(r); } catch(_) {}
+      return { level:1, totalStars:0, correctStreak:0, wrongStreak:0 };
     }
 
     function generateCountQuestion(level) {
       if (level <= 2) {
         const { min, max } = COUNT_LEVELS[level];
         const n = randInt(min, max);
-        const wrongSet = new Set();
-        while (wrongSet.size < 2) {
-          const offset = randInt(1, 4) * (Math.random() < 0.5 ? 1 : -1);
-          const c = n + offset;
-          if (c > 0 && c !== n && !wrongSet.has(c)) wrongSet.add(c);
-        }
-        return { mode: 'count', n, answer: n, answers: [n, ...wrongSet].sort(() => Math.random() - 0.5) };
+        const ws = new Set();
+        while (ws.size < 2) { const o = randInt(1,4)*(Math.random()<.5?1:-1), c = n+o; if(c>0&&c!==n&&!ws.has(c)) ws.add(c); }
+        return { mode:'count', n, answer:n, answers:[n,...ws].sort(()=>Math.random()-.5) };
       }
-      // levels 3–5: two groups
       const { nMin, nMax, mMin, mMax, maxSum } = ADD_LEVELS[level];
-      const n = randInt(nMin, nMax);
-      const m = randInt(mMin, Math.min(mMax, maxSum - n));
+      const n = randInt(nMin, nMax), m = randInt(mMin, Math.min(mMax, maxSum - n));
       const answer = n + m;
       const animal = EXTRA_ANIMALS[randInt(0, EXTRA_ANIMALS.length - 1)];
-      const wrongSet = new Set();
-      while (wrongSet.size < 2) {
-        const offset = randInt(1, 4) * (Math.random() < 0.5 ? 1 : -1);
-        const c = answer + offset;
-        if (c > 0 && c !== answer && !wrongSet.has(c)) wrongSet.add(c);
-      }
-      return { mode: 'add', n, m, animal, answer, answers: [answer, ...wrongSet].sort(() => Math.random() - 0.5) };
+      const ws = new Set();
+      while (ws.size < 2) { const o = randInt(1,4)*(Math.random()<.5?1:-1), c = answer+o; if(c>0&&c!==answer&&!ws.has(c)) ws.add(c); }
+      return { mode:'add', n, m, animal, answer, answers:[answer,...ws].sort(()=>Math.random()-.5) };
     }
 
     function generateMathQuestion(level) {
       const { min, max, maxSum, sub } = MATH_LEVELS[level];
       let a, b, op, answer;
       if (sub && Math.random() < 0.5) {
-        a = randInt(min + 1, max);
-        b = randInt(min, a - 1);
-        op = '-';
-        answer = a - b;
+        a = randInt(min+1, max); b = randInt(min, a-1); op = '-'; answer = a - b;
       } else {
-        const aMax = maxSum ? Math.min(max, maxSum - min) : max;
+        const aMax = maxSum ? Math.min(max, maxSum-min) : max;
         a = randInt(min, aMax);
-        const bMax = maxSum ? Math.min(max, maxSum - a) : max;
-        b = randInt(min, Math.max(min, bMax));
-        op = '+';
-        answer = a + b;
+        b = randInt(min, Math.max(min, maxSum ? Math.min(max, maxSum-a) : max));
+        op = '+'; answer = a + b;
       }
-      const wrongSet = new Set();
-      while (wrongSet.size < 3) {
-        const offset = randInt(1, 5) * (Math.random() < 0.5 ? 1 : -1);
-        const c = answer + offset;
-        if (c > 0 && c !== answer && !wrongSet.has(c)) wrongSet.add(c);
-      }
-      return { a, b, op, answer, answers: [answer, ...wrongSet].sort(() => Math.random() - 0.5) };
+      const ws = new Set();
+      while (ws.size < 3) { const o = randInt(1,5)*(Math.random()<.5?1:-1), c = answer+o; if(c>0&&c!==answer&&!ws.has(c)) ws.add(c); }
+      return { a, b, op, answer, answers:[answer,...ws].sort(()=>Math.random()-.5) };
+    }
+
+    /* ─── WelcomeScreen ─── */
+    function WelcomeScreen({ profile, progress, onDone }) {
+      const isBoy = profile === 'boy';
+      useEffect(() => {
+        playWelcome();
+        const t = setTimeout(onDone, 2500);
+        return () => clearTimeout(t);
+      }, []);
+
+      const screen = {
+        width:'100%', minHeight:'100vh',
+        background: isBoy
+          ? 'linear-gradient(135deg,#1a7a2e 0%,#56ab2f 50%,#a8e063 100%)'
+          : 'linear-gradient(135deg,#6a0572 0%,#c44daa 50%,#ff85c2 100%)',
+        display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+        gap:'20px', animation:'welcomeIn 0.5s ease both',
+      };
+      const badge = {
+        fontSize:'clamp(18px,4vw,28px)', fontWeight:'bold', color:'#fff',
+        textShadow:'0 2px 8px rgba(0,0,0,0.25)',
+        background:'rgba(255,255,255,0.22)', borderRadius:'20px', padding:'8px 20px',
+      };
+      return (
+        <div style={screen}>
+          <span style={{ fontSize:'110px', lineHeight:1, animation:'bounce 1s ease-in-out infinite' }}>
+            {isBoy ? '🦕' : '👸'}
+          </span>
+          <h1 style={{ fontSize:'clamp(26px,6vw,50px)', fontWeight:'bold', color:'#fff', textShadow:'0 3px 14px rgba(0,0,0,0.3)', textAlign:'center', lineHeight:1.2 }}>
+            {isBoy ? 'ברוך הבא גולן! 🌟' : 'ברוכה הבאה פלג! 🌟'}
+          </h1>
+          <div style={{ display:'flex', gap:'14px', flexWrap:'wrap', justifyContent:'center' }}>
+            <span style={badge}>⭐ {progress.totalStars} כוכבים</span>
+            <span style={badge}>רמה {progress.level}</span>
+          </div>
+        </div>
+      );
+    }
+
+    /* ─── LevelUpOverlay ─── */
+    function LevelUpOverlay({ newLevel }) {
+      const overlay = {
+        position:'fixed', inset:0, zIndex:150,
+        display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+        background:'linear-gradient(135deg,#ff6b6b 0%,#ffd93d 20%,#6bcb77 40%,#4d96ff 60%,#c44dff 80%,#ff6b6b 100%)',
+        animation:'rainbowShift 2s linear infinite',
+      };
+      const title = {
+        fontSize:'clamp(48px,10vw,80px)', fontWeight:'bold', color:'#fff',
+        textShadow:'0 4px 20px rgba(0,0,0,0.35)', margin:'10px 0',
+        fontFamily:'Varela Round,sans-serif',
+      };
+      return (
+        <div style={overlay}>
+          <div className="overlay-pop" style={{ textAlign:'center' }}>
+            <div style={{ fontSize:'100px', lineHeight:1 }}>🚀</div>
+            <div style={title}>עלית לרמה {newLevel}!</div>
+            <div style={{ display:'flex', justifyContent:'center', gap:'6px' }}>
+              {[0,1,2].map(i => (
+                <span key={i} style={{ fontSize:'56px', display:'inline-block', opacity:0, animation:`starPop 0.4s cubic-bezier(0.34,1.56,0.64,1) ${0.3+i*0.22}s both` }}>⭐</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ─── ProgressBar ─── */
+    function ProgressBar({ correctStreak, wrongStreak, barFlash }) {
+      const pct       = barFlash === 'gold' ? 100 : Math.min(100, (correctStreak / 3) * 100);
+      const fillColor = barFlash === 'gold'  ? '#f9ca24'
+                      : wrongStreak >= 1      ? 'rgba(231,76,60,0.85)'
+                      : '#2ecc71';
+      const trackBg   = wrongStreak >= 1 && !barFlash ? 'rgba(231,76,60,0.28)' : 'rgba(255,255,255,0.2)';
+      return (
+        <div style={{ width:'100%', maxWidth:'560px', height:'8px', background:trackBg, borderRadius:'4px', overflow:'hidden', marginBottom:'6px', transition:'background 0.3s ease' }}>
+          <div style={{ height:'100%', width:`${pct}%`, background:fillColor, borderRadius:'4px', transition:'width 0.4s ease, background 0.3s ease', boxShadow: pct>0 ? `0 0 8px ${fillColor}` : 'none' }} />
+        </div>
+      );
     }
 
     /* ─── TopBar ─── */
     function TopBar({ stars, level, onBack, onLevelDown, onLevelUp, accentColor, profileEmoji, profileName }) {
-      const bar = {
-        width: '100%', maxWidth: '620px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: '14px', padding: '0 4px', gap: '6px',
-      };
-      const backBtn = {
-        padding: '8px 14px', borderRadius: '50px', border: 'none',
-        background: 'rgba(255,255,255,0.28)', color: '#fff',
-        fontSize: '16px', fontFamily: 'inherit', fontWeight: 'bold',
-        cursor: 'pointer', minHeight: '44px', whiteSpace: 'nowrap', flexShrink: 0,
-      };
-      const starsBadge = {
-        fontSize: 'clamp(14px, 3vw, 20px)', fontWeight: 'bold', color: '#fff',
-        textShadow: '0 1px 4px rgba(0,0,0,0.3)',
-        background: 'rgba(255,255,255,0.18)', borderRadius: '20px',
-        padding: '5px 12px', whiteSpace: 'nowrap', flexShrink: 0,
-      };
-
-      function lvlBtn(disabled) {
-        return {
-          width: '36px', height: '36px', minWidth: '36px', borderRadius: '50%',
-          border: `2.5px solid ${disabled ? 'rgba(255,255,255,0.25)' : accentColor}`,
-          background: disabled ? 'rgba(255,255,255,0.1)' : '#fff',
-          color: disabled ? 'rgba(255,255,255,0.35)' : accentColor,
-          fontSize: '22px', lineHeight: 1, fontFamily: 'inherit', fontWeight: 'bold',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 0,
-        };
+      const bar = { width:'100%', maxWidth:'620px', display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px', padding:'0 4px', gap:'6px' };
+      const backBtn = { padding:'8px 14px', borderRadius:'50px', border:'none', background:'rgba(255,255,255,0.28)', color:'#fff', fontSize:'16px', fontFamily:'inherit', fontWeight:'bold', cursor:'pointer', minHeight:'44px', whiteSpace:'nowrap', flexShrink:0 };
+      const starsBadge = { fontSize:'clamp(14px,3vw,20px)', fontWeight:'bold', color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.3)', background:'rgba(255,255,255,0.18)', borderRadius:'20px', padding:'5px 12px', whiteSpace:'nowrap', flexShrink:0 };
+      function lvlBtn(dis) {
+        return { width:'36px', height:'36px', minWidth:'36px', borderRadius:'50%', border:`2.5px solid ${dis?'rgba(255,255,255,0.25)':accentColor}`, background:dis?'rgba(255,255,255,0.1)':'#fff', color:dis?'rgba(255,255,255,0.35)':accentColor, fontSize:'22px', lineHeight:1, fontFamily:'inherit', fontWeight:'bold', cursor:dis?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:0 };
       }
-
       return (
         <div style={bar}>
           <button style={backBtn} onClick={onBack}>← חזור</button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-            <span style={{ fontSize: '22px', lineHeight: 1 }}>{profileEmoji}</span>
-            <span style={{ fontSize: 'clamp(13px, 2.8vw, 17px)', fontWeight: 'bold', color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>{profileName}</span>
+          <div style={{ display:'flex', alignItems:'center', gap:'4px', flexShrink:0 }}>
+            <span style={{ fontSize:'22px', lineHeight:1 }}>{profileEmoji}</span>
+            <span style={{ fontSize:'clamp(13px,2.8vw,17px)', fontWeight:'bold', color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.3)' }}>{profileName}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', direction: 'ltr', flexShrink: 0 }}>
-            <button style={lvlBtn(level <= 1)} onClick={onLevelDown} disabled={level <= 1}>−</button>
-            <span style={{ fontSize: 'clamp(13px, 2.8vw, 17px)', fontWeight: 'bold', color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.3)', minWidth: '54px', textAlign: 'center' }}>
-              רמה {level}
-            </span>
-            <button style={lvlBtn(level >= 5)} onClick={onLevelUp} disabled={level >= 5}>+</button>
+          <div style={{ display:'flex', alignItems:'center', gap:'4px', direction:'ltr', flexShrink:0 }}>
+            <button style={lvlBtn(level<=1)} onClick={onLevelDown} disabled={level<=1}>−</button>
+            <span style={{ fontSize:'clamp(13px,2.8vw,17px)', fontWeight:'bold', color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.3)', minWidth:'54px', textAlign:'center' }}>רמה {level}</span>
+            <button style={lvlBtn(level>=5)} onClick={onLevelUp} disabled={level>=5}>+</button>
           </div>
           <span style={starsBadge}>⭐ {stars}</span>
         </div>
@@ -241,36 +325,19 @@
     /* ─── EmojiGrid ─── */
     function EmojiGrid({ n, emoji = '🦕' }) {
       const fontSize = n <= 6 ? '52px' : n <= 10 ? '40px' : '32px';
-      const grid = {
-        display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
-        gap: '6px', maxWidth: '220px',
-        padding: '14px', background: 'rgba(255,255,255,0.15)',
-        borderRadius: '20px', minHeight: '90px', alignContent: 'center',
-      };
       return (
-        <div style={grid}>
-          {Array.from({ length: n }).map((_, i) => (
-            <span key={i} style={{ fontSize, lineHeight: 1 }}>{emoji}</span>
-          ))}
+        <div style={{ display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'6px', maxWidth:'220px', padding:'14px', background:'rgba(255,255,255,0.15)', borderRadius:'20px', minHeight:'90px', alignContent:'center' }}>
+          {Array.from({ length: n }).map((_, i) => <span key={i} style={{ fontSize, lineHeight:1 }}>{emoji}</span>)}
         </div>
       );
     }
 
     /* ─── AdditionGrid ─── */
     function AdditionGrid({ n, m, animal }) {
-      const wrap = {
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        gap: '10px', marginBottom: '16px', flexWrap: 'wrap',
-      };
-      const plus = {
-        fontSize: '48px', fontWeight: 'bold', lineHeight: 1,
-        color: '#fff', textShadow: '0 2px 10px rgba(0,0,0,0.3)',
-        filter: 'drop-shadow(0 0 8px rgba(255,220,0,0.6))',
-      };
       return (
-        <div style={wrap}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'10px', marginBottom:'16px', flexWrap:'wrap' }}>
           <EmojiGrid n={n} emoji="🦕" />
-          <span style={plus}>➕</span>
+          <span style={{ fontSize:'48px', fontWeight:'bold', lineHeight:1, color:'#fff', textShadow:'0 2px 10px rgba(0,0,0,0.3)', filter:'drop-shadow(0 0 8px rgba(255,220,0,0.6))' }}>➕</span>
           <EmojiGrid n={m} emoji={animal} />
         </div>
       );
@@ -278,17 +345,9 @@
 
     /* ─── EquationDisplay ─── */
     function EquationDisplay({ a, b, op }) {
-      const box = {
-        background: 'rgba(255,255,255,0.18)', borderRadius: '28px',
-        padding: '24px 40px', marginBottom: '20px', textAlign: 'center',
-      };
-      const eq = {
-        fontSize: 'clamp(64px, 14vw, 96px)', fontWeight: 'bold', color: '#fff',
-        textShadow: '0 3px 12px rgba(0,0,0,0.25)', letterSpacing: '4px', lineHeight: 1.1,
-      };
       return (
-        <div style={box}>
-          <span style={eq}>{a} {op} {b} = ?</span>
+        <div style={{ background:'rgba(255,255,255,0.18)', borderRadius:'28px', padding:'24px 40px', marginBottom:'20px', textAlign:'center' }}>
+          <span style={{ fontSize:'clamp(64px,14vw,96px)', fontWeight:'bold', color:'#fff', textShadow:'0 3px 12px rgba(0,0,0,0.25)', letterSpacing:'4px', lineHeight:1.1 }}>{a} {op} {b} = ?</span>
         </div>
       );
     }
@@ -296,42 +355,47 @@
     /* ─── AnswerButton ─── */
     function AnswerButton({ value, color, isCorrect, onAnswer, disabled }) {
       const [flashClass, setFlashClass] = useState('');
+      const [result,     setResult]     = useState(null);
+      const [hovered,    setHovered]    = useState(false);
 
       function handleClick() {
         if (disabled) return;
-        setFlashClass(isCorrect ? 'flash-correct' : 'flash-wrong');
+        const r = isCorrect ? 'correct' : 'wrong';
+        setResult(r);
+        setFlashClass(r === 'correct' ? 'flash-correct' : 'flash-wrong');
         onAnswer(isCorrect);
       }
 
+      const active = hovered && !disabled && !result;
+      const label  = result === 'correct' ? '✓' : result === 'wrong' ? '✗' : value;
+
       const btn = {
-        minWidth: '80px', minHeight: '70px', borderRadius: '20px',
-        border: 'none', background: color, color: '#fff',
-        fontSize: 'clamp(26px, 6vw, 38px)', fontFamily: 'inherit', fontWeight: 'bold',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        boxShadow: '0 4px 14px rgba(0,0,0,0.2)', opacity: disabled ? 0.85 : 1,
+        minWidth:'80px', minHeight:'70px', borderRadius:'20px', border:'none', background:color, color:'#fff',
+        fontSize: result ? 'clamp(30px,7vw,46px)' : 'clamp(26px,6vw,38px)',
+        fontFamily:'inherit', fontWeight:'bold',
+        cursor: disabled && !result ? 'not-allowed' : 'pointer',
+        boxShadow: active ? `0 8px 24px ${color}99,0 4px 14px rgba(0,0,0,0.2)` : '0 4px 14px rgba(0,0,0,0.2)',
+        opacity: disabled && !result ? 0.85 : 1,
+        transform: active ? 'scale(1.08)' : 'scale(1)',
+        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
       };
 
       return (
-        <button style={btn} className={flashClass} onClick={handleClick}>
-          {value}
+        <button style={btn} className={flashClass} onClick={handleClick}
+          onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+          onTouchStart={() => setHovered(true)}  onTouchEnd={() => setHovered(false)}>
+          {label}
         </button>
       );
     }
 
     /* ─── AnswerButtons ─── */
     function AnswerButtons({ answers, correctAnswer, onAnswer, disabled, qid, colors }) {
-      const wrap = { display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '8px' };
       return (
-        <div style={wrap}>
+        <div style={{ display:'flex', gap:'14px', justifyContent:'center', flexWrap:'wrap', marginTop:'8px' }}>
           {answers.map((ans, i) => (
-            <AnswerButton
-              key={`${qid}-${i}`}
-              value={ans}
-              color={colors[i % colors.length]}
-              isCorrect={ans === correctAnswer}
-              onAnswer={onAnswer}
-              disabled={disabled}
-            />
+            <AnswerButton key={`${qid}-${i}`} value={ans} color={colors[i%colors.length]}
+              isCorrect={ans===correctAnswer} onAnswer={onAnswer} disabled={disabled} />
           ))}
         </div>
       );
@@ -340,194 +404,122 @@
     /* ─── Overlay ─── */
     function Overlay({ type, correctMsg = 'כל הכבוד!' }) {
       if (!type) return null;
-      const overlay = {
-        position: 'fixed', inset: 0,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        background: type === 'correct' ? 'rgba(46,204,113,0.72)' : 'rgba(231,76,60,0.70)',
-        zIndex: 100, backdropFilter: 'blur(4px)',
-      };
-      const text = {
-        fontSize: 'clamp(28px, 7vw, 52px)', fontWeight: 'bold',
-        color: '#fff', textShadow: '0 2px 10px rgba(0,0,0,0.3)',
-        fontFamily: 'Varela Round, sans-serif', marginTop: '12px',
-      };
       return (
-        <div style={overlay}>
-          <div className="overlay-pop" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '90px', lineHeight: 1 }}>{type === 'correct' ? '🎉' : '😔'}</div>
-            <div style={text}>{type === 'correct' ? correctMsg : 'נסה שוב!'}</div>
+        <div style={{ position:'fixed', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background: type==='correct'?'rgba(46,204,113,0.72)':'rgba(231,76,60,0.70)', zIndex:100, backdropFilter:'blur(4px)' }}>
+          <div className="overlay-pop" style={{ textAlign:'center' }}>
+            <div style={{ fontSize:'90px', lineHeight:1 }}>{type==='correct'?'🎉':'😔'}</div>
+            <div style={{ fontSize:'clamp(28px,7vw,52px)', fontWeight:'bold', color:'#fff', textShadow:'0 2px 10px rgba(0,0,0,0.3)', fontFamily:'Varela Round,sans-serif', marginTop:'12px' }}>
+              {type==='correct' ? correctMsg : 'נסה שוב!'}
+            </div>
           </div>
         </div>
       );
     }
 
-    /* ─── CountingGame (גולן) ─── */
-    function CountingGame({ onBack }) {
-      const init = loadProgress(GOLAN_KEY);
+    /* ─── shared game logic ─── */
+    function useGameState(key, genQuestion) {
+      const init = loadProgress(key);
       const [level,         setLevel]        = useState(init.level);
       const [totalStars,    setTotalStars]    = useState(init.totalStars);
       const [correctStreak, setCorrectStreak] = useState(init.correctStreak);
       const [wrongStreak,   setWrongStreak]   = useState(init.wrongStreak);
-      const [question,      setQuestion]      = useState(() => generateCountQuestion(init.level));
+      const [question,      setQuestion]      = useState(() => genQuestion(init.level));
       const [qid,           setQid]           = useState(0);
       const [overlay,       setOverlay]       = useState(null);
       const [answering,     setAnswering]     = useState(false);
+      const [barFlash,      setBarFlash]      = useState(null);
       const timerRef = useRef(null);
 
       useEffect(() => {
-        localStorage.setItem(GOLAN_KEY, JSON.stringify({ level, totalStars, correctStreak, wrongStreak }));
+        localStorage.setItem(key, JSON.stringify({ level, totalStars, correctStreak, wrongStreak }));
       }, [level, totalStars, correctStreak, wrongStreak]);
 
       function next(nextLevel) {
-        setQuestion(generateCountQuestion(nextLevel));
-        setQid(id => id + 1);
-        setOverlay(null);
-        setAnswering(false);
+        setQuestion(genQuestion(nextLevel)); setQid(id=>id+1);
+        setOverlay(null); setAnswering(false); setBarFlash(null);
       }
 
       function handleLevelChange(delta) {
-        const newLevel = Math.max(1, Math.min(5, level + delta));
-        if (newLevel === level) return;
+        const nl = Math.max(1, Math.min(5, level + delta));
+        if (nl === level) return;
         if (timerRef.current) clearTimeout(timerRef.current);
-        setLevel(newLevel);
-        setCorrectStreak(0);
-        setWrongStreak(0);
-        setQuestion(generateCountQuestion(newLevel));
-        setQid(id => id + 1);
-        setOverlay(null);
-        setAnswering(false);
+        setLevel(nl); setCorrectStreak(0); setWrongStreak(0);
+        setQuestion(genQuestion(nl)); setQid(id=>id+1);
+        setOverlay(null); setAnswering(false); setBarFlash(null);
       }
 
-      function handleAnswer(correct) {
+      function handleAnswer(correct, correctMsg) {
         if (answering) return;
         setAnswering(true);
         if (correct) {
           const newCS = correctStreak + 1;
           let nextLevel = level, nextCS = newCS;
-          if (newCS >= 3) { nextLevel = Math.min(5, level + 1); nextCS = 0; }
-          setTotalStars(n => n + 1);
-          setCorrectStreak(nextCS);
-          setWrongStreak(0);
-          setLevel(nextLevel);
-          setOverlay('correct');
-          timerRef.current = setTimeout(() => next(nextLevel), 1500);
+          if (newCS >= 3) { nextLevel = Math.min(5, level+1); nextCS = 0; }
+          const didLevelUp = nextLevel > level;
+          setTotalStars(n=>n+1); setCorrectStreak(nextCS); setWrongStreak(0); setLevel(nextLevel);
+          spawnConfetti();
+          if (didLevelUp) {
+            playLevelUp(); setBarFlash('gold'); setOverlay('levelup');
+            timerRef.current = setTimeout(() => next(nextLevel), 2500);
+          } else {
+            playCorrect(); setOverlay('correct');
+            timerRef.current = setTimeout(() => next(nextLevel), 1500);
+          }
         } else {
           const newWS = wrongStreak + 1;
           let nextLevel = level, nextWS = newWS;
-          if (newWS >= 2) { nextLevel = Math.max(1, level - 1); nextWS = 0; }
-          setCorrectStreak(0);
-          setWrongStreak(nextWS);
-          setLevel(nextLevel);
-          setOverlay('wrong');
+          if (newWS >= 2) { nextLevel = Math.max(1, level-1); nextWS = 0; }
+          setCorrectStreak(0); setWrongStreak(nextWS); setLevel(nextLevel);
+          playWrong(); setOverlay('wrong');
           timerRef.current = setTimeout(() => next(nextLevel), 1000);
         }
       }
 
-      const isAdd = question.mode === 'add';
-      const qText = {
-        fontSize: 'clamp(20px, 4.5vw, 28px)', fontWeight: 'bold', color: '#fff',
-        textShadow: '0 2px 8px rgba(0,0,0,0.25)', textAlign: 'center', margin: '4px 0 6px',
-      };
-      const screen = { ...s.screen, justifyContent: 'flex-start', paddingTop: '20px', gap: '10px' };
+      return { level, totalStars, correctStreak, wrongStreak, question, qid, overlay, answering, barFlash, handleAnswer, handleLevelChange };
+    }
+
+    /* ─── CountingGame (גולן) ─── */
+    function CountingGame({ onBack }) {
+      const g = useGameState(GOLAN_KEY, generateCountQuestion);
+      const isAdd = g.question.mode === 'add';
+      const screen = { ...s.screen, justifyContent:'flex-start', paddingTop:'20px', gap:'10px' };
+      const qText = { fontSize:'clamp(20px,4.5vw,28px)', fontWeight:'bold', color:'#fff', textShadow:'0 2px 8px rgba(0,0,0,0.25)', textAlign:'center', margin:'4px 0 6px' };
 
       return (
         <div style={screen}>
-          <Overlay type={overlay} />
-          <TopBar
-            stars={totalStars} level={level} onBack={onBack}
-            onLevelDown={() => handleLevelChange(-1)} onLevelUp={() => handleLevelChange(1)}
-            accentColor="#7ecb50" profileEmoji="🦕" profileName="גולן"
-          />
+          {g.overlay === 'levelup' && <LevelUpOverlay newLevel={g.level} />}
+          {(g.overlay==='correct'||g.overlay==='wrong') && <Overlay type={g.overlay} />}
+          <TopBar stars={g.totalStars} level={g.level} onBack={onBack}
+            onLevelDown={()=>g.handleLevelChange(-1)} onLevelUp={()=>g.handleLevelChange(1)}
+            accentColor="#7ecb50" profileEmoji="🦕" profileName="גולן" />
+          <ProgressBar correctStreak={g.correctStreak} wrongStreak={g.wrongStreak} barFlash={g.barFlash} />
           {isAdd
-            ? <AdditionGrid n={question.n} m={question.m} animal={question.animal} />
-            : <EmojiGrid n={question.n} />
+            ? <AdditionGrid n={g.question.n} m={g.question.m} animal={g.question.animal} />
+            : <EmojiGrid n={g.question.n} />
           }
           <p style={qText}>{isAdd ? 'כמה חיות יש בסך הכל?' : 'כמה דינוזאורים יש?'}</p>
-          <AnswerButtons
-            answers={question.answers} correctAnswer={question.answer}
-            onAnswer={handleAnswer} disabled={answering} qid={qid} colors={BOY_COLORS}
-          />
+          <AnswerButtons answers={g.question.answers} correctAnswer={g.question.answer}
+            onAnswer={g.handleAnswer} disabled={g.answering} qid={g.qid} colors={BOY_COLORS} />
         </div>
       );
     }
 
     /* ─── MathGame (פלג) ─── */
     function MathGame({ onBack }) {
-      const init = loadProgress(PALEG_KEY);
-      const [level,         setLevel]        = useState(init.level);
-      const [totalStars,    setTotalStars]    = useState(init.totalStars);
-      const [correctStreak, setCorrectStreak] = useState(init.correctStreak);
-      const [wrongStreak,   setWrongStreak]   = useState(init.wrongStreak);
-      const [question,      setQuestion]      = useState(() => generateMathQuestion(init.level));
-      const [qid,           setQid]           = useState(0);
-      const [overlay,       setOverlay]       = useState(null);
-      const [answering,     setAnswering]     = useState(false);
-      const timerRef = useRef(null);
-
-      useEffect(() => {
-        localStorage.setItem(PALEG_KEY, JSON.stringify({ level, totalStars, correctStreak, wrongStreak }));
-      }, [level, totalStars, correctStreak, wrongStreak]);
-
-      function next(nextLevel) {
-        setQuestion(generateMathQuestion(nextLevel));
-        setQid(id => id + 1);
-        setOverlay(null);
-        setAnswering(false);
-      }
-
-      function handleLevelChange(delta) {
-        const newLevel = Math.max(1, Math.min(5, level + delta));
-        if (newLevel === level) return;
-        if (timerRef.current) clearTimeout(timerRef.current);
-        setLevel(newLevel);
-        setCorrectStreak(0);
-        setWrongStreak(0);
-        setQuestion(generateMathQuestion(newLevel));
-        setQid(id => id + 1);
-        setOverlay(null);
-        setAnswering(false);
-      }
-
-      function handleAnswer(correct) {
-        if (answering) return;
-        setAnswering(true);
-        if (correct) {
-          const newCS = correctStreak + 1;
-          let nextLevel = level, nextCS = newCS;
-          if (newCS >= 3) { nextLevel = Math.min(5, level + 1); nextCS = 0; }
-          setTotalStars(n => n + 1);
-          setCorrectStreak(nextCS);
-          setWrongStreak(0);
-          setLevel(nextLevel);
-          setOverlay('correct');
-          timerRef.current = setTimeout(() => next(nextLevel), 1500);
-        } else {
-          const newWS = wrongStreak + 1;
-          let nextLevel = level, nextWS = newWS;
-          if (newWS >= 2) { nextLevel = Math.max(1, level - 1); nextWS = 0; }
-          setCorrectStreak(0);
-          setWrongStreak(nextWS);
-          setLevel(nextLevel);
-          setOverlay('wrong');
-          timerRef.current = setTimeout(() => next(nextLevel), 1000);
-        }
-      }
-
-      const screen = { ...s.screen, justifyContent: 'flex-start', paddingTop: '20px', gap: '10px' };
+      const g = useGameState(PALEG_KEY, generateMathQuestion);
+      const screen = { ...s.screen, justifyContent:'flex-start', paddingTop:'20px', gap:'10px' };
 
       return (
         <div style={screen}>
-          <Overlay type={overlay} correctMsg="כל הכבוד פלג!" />
-          <TopBar
-            stars={totalStars} level={level} onBack={onBack}
-            onLevelDown={() => handleLevelChange(-1)} onLevelUp={() => handleLevelChange(1)}
-            accentColor="#c44daa" profileEmoji="👸" profileName="פלג"
-          />
-          <EquationDisplay a={question.a} b={question.b} op={question.op} />
-          <AnswerButtons
-            answers={question.answers} correctAnswer={question.answer}
-            onAnswer={handleAnswer} disabled={answering} qid={qid} colors={GIRL_COLORS}
-          />
+          {g.overlay === 'levelup' && <LevelUpOverlay newLevel={g.level} />}
+          {(g.overlay==='correct'||g.overlay==='wrong') && <Overlay type={g.overlay} correctMsg="כל הכבוד פלג!" />}
+          <TopBar stars={g.totalStars} level={g.level} onBack={onBack}
+            onLevelDown={()=>g.handleLevelChange(-1)} onLevelUp={()=>g.handleLevelChange(1)}
+            accentColor="#c44daa" profileEmoji="👸" profileName="פלג" />
+          <ProgressBar correctStreak={g.correctStreak} wrongStreak={g.wrongStreak} barFlash={g.barFlash} />
+          <EquationDisplay a={g.question.a} b={g.question.b} op={g.question.op} />
+          <AnswerButtons answers={g.question.answers} correctAnswer={g.question.answer}
+            onAnswer={g.handleAnswer} disabled={g.answering} qid={g.qid} colors={GIRL_COLORS} />
         </div>
       );
     }
@@ -536,27 +528,21 @@
     function ProfileCard({ emoji, label, colors, onClick }) {
       const [hovered, setHovered] = useState(false);
       const card = {
-        minWidth: '200px', minHeight: '260px', width: 'clamp(200px, 40vw, 260px)',
-        borderRadius: '28px', background: colors.bg,
-        boxShadow: hovered
-          ? `0 16px 48px ${colors.shadow}, 0 4px 16px rgba(0,0,0,0.18)`
-          : `0 8px 28px ${colors.shadow}, 0 2px 8px rgba(0,0,0,0.12)`,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        cursor: 'pointer', transform: hovered ? 'scale(1.07)' : 'scale(1)',
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-        border: `3px solid ${colors.border}`, padding: '24px 16px', userSelect: 'none',
+        minWidth:'200px', minHeight:'260px', width:'clamp(200px,40vw,260px)',
+        borderRadius:'28px', background:colors.bg,
+        boxShadow: hovered ? `0 16px 48px ${colors.shadow},0 4px 16px rgba(0,0,0,0.18)` : `0 8px 28px ${colors.shadow},0 2px 8px rgba(0,0,0,0.12)`,
+        display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+        cursor:'pointer', transform:hovered?'scale(1.07)':'scale(1)',
+        transition:'transform 0.2s ease,box-shadow 0.2s ease',
+        border:`3px solid ${colors.border}`, padding:'24px 16px', userSelect:'none',
       };
       return (
-        <div
-          style={card} onClick={onClick}
-          onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-          onTouchStart={() => setHovered(true)}
-          onTouchEnd={() => { setHovered(false); onClick(); }}
-          role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onClick()}
-          aria-label={label}
-        >
-          <span style={{ fontSize: '90px', lineHeight: 1, display: 'block', animation: 'bounce 1.6s ease-in-out infinite', marginBottom: '18px' }}>{emoji}</span>
-          <span style={{ fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: 'bold', color: colors.text, textShadow: '0 1px 4px rgba(0,0,0,0.15)', letterSpacing: '1px' }}>{label}</span>
+        <div style={card} onClick={onClick}
+          onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}
+          onTouchStart={()=>setHovered(true)} onTouchEnd={()=>{setHovered(false);onClick();}}
+          role="button" tabIndex={0} onKeyDown={(e)=>e.key==='Enter'&&onClick()} aria-label={label}>
+          <span style={{ fontSize:'90px', lineHeight:1, display:'block', animation:'bounce 1.6s ease-in-out infinite', marginBottom:'18px' }}>{emoji}</span>
+          <span style={{ fontSize:'clamp(22px,5vw,32px)', fontWeight:'bold', color:colors.text, textShadow:'0 1px 4px rgba(0,0,0,0.15)', letterSpacing:'1px' }}>{label}</span>
         </div>
       );
     }
@@ -566,17 +552,13 @@
       return (
         <div style={s.screen}>
           <h1 style={s.title}>מי משחק היום? 🎮</h1>
-          <div style={{ display: 'flex', flexDirection: 'row', gap: 'clamp(20px, 5vw, 48px)', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <ProfileCard
-              emoji="🦕" label="גולן"
-              colors={{ bg: 'linear-gradient(145deg, #a8f08a, #f9f871)', border: '#7ecb50', shadow: 'rgba(126,203,80,0.45)', text: '#3a6b1a' }}
-              onClick={() => onSelect('boy')}
-            />
-            <ProfileCard
-              emoji="👸" label="פלג"
-              colors={{ bg: 'linear-gradient(145deg, #ff85c2, #d966ff)', border: '#c44daa', shadow: 'rgba(196,77,170,0.45)', text: '#fff' }}
-              onClick={() => onSelect('girl')}
-            />
+          <div style={{ display:'flex', flexDirection:'row', gap:'clamp(20px,5vw,48px)', alignItems:'center', justifyContent:'center', flexWrap:'wrap' }}>
+            <ProfileCard emoji="🦕" label="גולן"
+              colors={{ bg:'linear-gradient(145deg,#a8f08a,#f9f871)', border:'#7ecb50', shadow:'rgba(126,203,80,0.45)', text:'#3a6b1a' }}
+              onClick={() => onSelect('boy')} />
+            <ProfileCard emoji="👸" label="פלג"
+              colors={{ bg:'linear-gradient(145deg,#ff85c2,#d966ff)', border:'#c44daa', shadow:'rgba(196,77,170,0.45)', text:'#fff' }}
+              onClick={() => onSelect('girl')} />
           </div>
         </div>
       );
@@ -584,10 +566,21 @@
 
     /* ─── App ─── */
     function App() {
-      const [profile, setProfile] = useState(null);
-      const back = () => setProfile(null);
-      if (profile === null)  return <ProfileSelection onSelect={setProfile} />;
-      if (profile === 'boy') return <CountingGame onBack={back} />;
+      const [screen, setScreen] = useState('profiles');
+
+      function selectProfile(profile) {
+        getAudioCtx(); // prime AudioContext on first user gesture
+        const key      = profile === 'boy' ? GOLAN_KEY : PALEG_KEY;
+        const progress = loadProgress(key);
+        setScreen(progress.totalStars > 0 ? `welcome-${profile}` : profile);
+      }
+
+      const back = () => setScreen('profiles');
+
+      if (screen === 'profiles')      return <ProfileSelection onSelect={selectProfile} />;
+      if (screen === 'welcome-boy')   return <WelcomeScreen profile="boy"  progress={loadProgress(GOLAN_KEY)} onDone={()=>setScreen('boy')}  />;
+      if (screen === 'welcome-girl')  return <WelcomeScreen profile="girl" progress={loadProgress(PALEG_KEY)} onDone={()=>setScreen('girl')} />;
+      if (screen === 'boy')           return <CountingGame onBack={back} />;
       return <MathGame onBack={back} />;
     }
 
