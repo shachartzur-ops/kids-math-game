@@ -41,11 +41,6 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50%       { transform: scale(1.08); }
-    }
-
     @keyframes flashGreen {
       0%   { background: #2ecc71; transform: scale(1.13); }
       100% { background: #2ecc71; transform: scale(1); }
@@ -96,8 +91,14 @@
       },
     };
 
-    /* ─── Game logic helpers ─── */
-    const LEVEL_RANGES = {
+    /* ─── Constants ─── */
+    const GOLAN_KEY = 'profile_golan';
+    const PALEG_KEY = 'profile_paleg';
+
+    const BOY_COLORS  = ['#ff9f43', '#54a0ff', '#5f27cd'];
+    const GIRL_COLORS = ['#ff6eb4', '#c44dff', '#ff85c2', '#9b59b6'];
+
+    const COUNT_LEVELS = {
       1: { min: 1, max: 5  },
       2: { min: 1, max: 8  },
       3: { min: 1, max: 10 },
@@ -105,23 +106,17 @@
       5: { min: 3, max: 15 },
     };
 
-    const BOY_KEY = 'profile_boy';
+    const MATH_LEVELS = {
+      1: { min: 1, max: 5,  maxSum: 10,  sub: false },
+      2: { min: 1, max: 10, maxSum: 15,  sub: false },
+      3: { min: 1, max: 15, maxSum: 20,  sub: false },
+      4: { min: 1, max: 20, maxSum: null, sub: true  },
+      5: { min: 1, max: 30, maxSum: null, sub: true  },
+    };
 
+    /* ─── Helpers ─── */
     function randInt(min, max) {
       return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-
-    function generateQuestion(level) {
-      const { min, max } = LEVEL_RANGES[level];
-      const n = randInt(min, max);
-      const wrongSet = new Set();
-      while (wrongSet.size < 2) {
-        const offset = randInt(1, 4) * (Math.random() < 0.5 ? 1 : -1);
-        const c = n + offset;
-        if (c > 0 && c !== n && !wrongSet.has(c)) wrongSet.add(c);
-      }
-      const answers = [n, ...wrongSet].sort(() => Math.random() - 0.5);
-      return { n, answers };
     }
 
     function loadProgress(key) {
@@ -130,6 +125,43 @@
         if (raw) return JSON.parse(raw);
       } catch (_) {}
       return { level: 1, totalStars: 0, correctStreak: 0, wrongStreak: 0 };
+    }
+
+    function generateCountQuestion(level) {
+      const { min, max } = COUNT_LEVELS[level];
+      const n = randInt(min, max);
+      const wrongSet = new Set();
+      while (wrongSet.size < 2) {
+        const offset = randInt(1, 4) * (Math.random() < 0.5 ? 1 : -1);
+        const c = n + offset;
+        if (c > 0 && c !== n && !wrongSet.has(c)) wrongSet.add(c);
+      }
+      return { n, answers: [n, ...wrongSet].sort(() => Math.random() - 0.5) };
+    }
+
+    function generateMathQuestion(level) {
+      const { min, max, maxSum, sub } = MATH_LEVELS[level];
+      let a, b, op, answer;
+      if (sub && Math.random() < 0.5) {
+        a = randInt(min + 1, max);
+        b = randInt(min, a - 1);
+        op = '-';
+        answer = a - b;
+      } else {
+        const aMax = maxSum ? Math.min(max, maxSum - min) : max;
+        a = randInt(min, aMax);
+        const bMax = maxSum ? Math.min(max, maxSum - a) : max;
+        b = randInt(min, Math.max(min, bMax));
+        op = '+';
+        answer = a + b;
+      }
+      const wrongSet = new Set();
+      while (wrongSet.size < 3) {
+        const offset = randInt(1, 5) * (Math.random() < 0.5 ? 1 : -1);
+        const c = answer + offset;
+        if (c > 0 && c !== answer && !wrongSet.has(c)) wrongSet.add(c);
+      }
+      return { a, b, op, answer, answers: [answer, ...wrongSet].sort(() => Math.random() - 0.5) };
     }
 
     /* ─── TopBar ─── */
@@ -177,10 +209,32 @@
       );
     }
 
-    /* ─── AnswerButton ─── */
-    const BTN_COLORS = ['#ff9f43', '#54a0ff', '#5f27cd'];
+    /* ─── EquationDisplay ─── */
+    function EquationDisplay({ a, b, op }) {
+      const box = {
+        background: 'rgba(255,255,255,0.18)',
+        borderRadius: '28px',
+        padding: '24px 40px',
+        marginBottom: '20px',
+        textAlign: 'center',
+      };
+      const eq = {
+        fontSize: 'clamp(64px, 14vw, 96px)',
+        fontWeight: 'bold',
+        color: '#fff',
+        textShadow: '0 3px 12px rgba(0,0,0,0.25)',
+        letterSpacing: '4px',
+        lineHeight: 1.1,
+      };
+      return (
+        <div style={box}>
+          <span style={eq}>{a} {op} {b} = ?</span>
+        </div>
+      );
+    }
 
-    function AnswerButton({ value, colorIdx, isCorrect, onAnswer, disabled }) {
+    /* ─── AnswerButton ─── */
+    function AnswerButton({ value, color, isCorrect, onAnswer, disabled }) {
       const [flashClass, setFlashClass] = useState('');
 
       function handleClick() {
@@ -191,7 +245,7 @@
 
       const btn = {
         minWidth: '80px', minHeight: '70px', borderRadius: '20px',
-        border: 'none', background: BTN_COLORS[colorIdx],
+        border: 'none', background: color,
         color: '#fff', fontSize: 'clamp(26px, 6vw, 38px)',
         fontFamily: 'inherit', fontWeight: 'bold',
         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -207,7 +261,7 @@
     }
 
     /* ─── AnswerButtons ─── */
-    function AnswerButtons({ answers, correctAnswer, onAnswer, disabled, qid }) {
+    function AnswerButtons({ answers, correctAnswer, onAnswer, disabled, qid, colors }) {
       const wrap = { display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '8px' };
       return (
         <div style={wrap}>
@@ -215,7 +269,7 @@
             <AnswerButton
               key={`${qid}-${i}`}
               value={ans}
-              colorIdx={i}
+              color={colors[i % colors.length]}
               isCorrect={ans === correctAnswer}
               onAnswer={onAnswer}
               disabled={disabled}
@@ -226,7 +280,7 @@
     }
 
     /* ─── Overlay ─── */
-    function Overlay({ type }) {
+    function Overlay({ type, correctMsg = 'כל הכבוד!' }) {
       if (!type) return null;
       const overlay = {
         position: 'fixed', inset: 0,
@@ -243,30 +297,30 @@
         <div style={overlay}>
           <div className="overlay-pop" style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '90px', lineHeight: 1 }}>{type === 'correct' ? '🎉' : '😔'}</div>
-            <div style={text}>{type === 'correct' ? 'כל הכבוד!' : 'נסה שוב!'}</div>
+            <div style={text}>{type === 'correct' ? correctMsg : 'נסה שוב!'}</div>
           </div>
         </div>
       );
     }
 
-    /* ─── CountingGame ─── */
+    /* ─── CountingGame (גולן) ─── */
     function CountingGame({ onBack }) {
-      const init = loadProgress(BOY_KEY);
-      const [level,         setLevel]         = useState(init.level);
-      const [totalStars,    setTotalStars]     = useState(init.totalStars);
-      const [correctStreak, setCorrectStreak]  = useState(init.correctStreak);
-      const [wrongStreak,   setWrongStreak]    = useState(init.wrongStreak);
-      const [question,      setQuestion]       = useState(() => generateQuestion(init.level));
-      const [qid,           setQid]            = useState(0);
-      const [overlay,       setOverlay]        = useState(null);
-      const [answering,     setAnswering]      = useState(false);
+      const init = loadProgress(GOLAN_KEY);
+      const [level,         setLevel]        = useState(init.level);
+      const [totalStars,    setTotalStars]    = useState(init.totalStars);
+      const [correctStreak, setCorrectStreak] = useState(init.correctStreak);
+      const [wrongStreak,   setWrongStreak]   = useState(init.wrongStreak);
+      const [question,      setQuestion]      = useState(() => generateCountQuestion(init.level));
+      const [qid,           setQid]           = useState(0);
+      const [overlay,       setOverlay]       = useState(null);
+      const [answering,     setAnswering]     = useState(false);
 
       useEffect(() => {
-        localStorage.setItem(BOY_KEY, JSON.stringify({ level, totalStars, correctStreak, wrongStreak }));
+        localStorage.setItem(GOLAN_KEY, JSON.stringify({ level, totalStars, correctStreak, wrongStreak }));
       }, [level, totalStars, correctStreak, wrongStreak]);
 
       function next(nextLevel) {
-        setQuestion(generateQuestion(nextLevel));
+        setQuestion(generateCountQuestion(nextLevel));
         setQid(id => id + 1);
         setOverlay(null);
         setAnswering(false);
@@ -275,12 +329,11 @@
       function handleAnswer(correct) {
         if (answering) return;
         setAnswering(true);
-
         if (correct) {
           const newCS = correctStreak + 1;
           let nextLevel = level, nextCS = newCS;
           if (newCS >= 3) { nextLevel = Math.min(5, level + 1); nextCS = 0; }
-          setTotalStars(s => s + 1);
+          setTotalStars(n => n + 1);
           setCorrectStreak(nextCS);
           setWrongStreak(0);
           setLevel(nextLevel);
@@ -299,7 +352,7 @@
       }
 
       const screen = { ...s.screen, justifyContent: 'flex-start', paddingTop: '20px', gap: '10px' };
-      const question_text = {
+      const qText = {
         fontSize: 'clamp(20px, 4.5vw, 30px)', fontWeight: 'bold',
         color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.25)',
         textAlign: 'center', margin: '4px 0 6px',
@@ -310,13 +363,81 @@
           <Overlay type={overlay} />
           <TopBar stars={totalStars} level={level} onBack={onBack} />
           <EmojiGrid n={question.n} />
-          <p style={question_text}>כמה דינוזאורים יש?</p>
+          <p style={qText}>כמה דינוזאורים יש?</p>
           <AnswerButtons
             answers={question.answers}
             correctAnswer={question.n}
             onAnswer={handleAnswer}
             disabled={answering}
             qid={qid}
+            colors={BOY_COLORS}
+          />
+        </div>
+      );
+    }
+
+    /* ─── MathGame (פלג) ─── */
+    function MathGame({ onBack }) {
+      const init = loadProgress(PALEG_KEY);
+      const [level,         setLevel]        = useState(init.level);
+      const [totalStars,    setTotalStars]    = useState(init.totalStars);
+      const [correctStreak, setCorrectStreak] = useState(init.correctStreak);
+      const [wrongStreak,   setWrongStreak]   = useState(init.wrongStreak);
+      const [question,      setQuestion]      = useState(() => generateMathQuestion(init.level));
+      const [qid,           setQid]           = useState(0);
+      const [overlay,       setOverlay]       = useState(null);
+      const [answering,     setAnswering]     = useState(false);
+
+      useEffect(() => {
+        localStorage.setItem(PALEG_KEY, JSON.stringify({ level, totalStars, correctStreak, wrongStreak }));
+      }, [level, totalStars, correctStreak, wrongStreak]);
+
+      function next(nextLevel) {
+        setQuestion(generateMathQuestion(nextLevel));
+        setQid(id => id + 1);
+        setOverlay(null);
+        setAnswering(false);
+      }
+
+      function handleAnswer(correct) {
+        if (answering) return;
+        setAnswering(true);
+        if (correct) {
+          const newCS = correctStreak + 1;
+          let nextLevel = level, nextCS = newCS;
+          if (newCS >= 3) { nextLevel = Math.min(5, level + 1); nextCS = 0; }
+          setTotalStars(n => n + 1);
+          setCorrectStreak(nextCS);
+          setWrongStreak(0);
+          setLevel(nextLevel);
+          setOverlay('correct');
+          setTimeout(() => next(nextLevel), 1500);
+        } else {
+          const newWS = wrongStreak + 1;
+          let nextLevel = level, nextWS = newWS;
+          if (newWS >= 2) { nextLevel = Math.max(1, level - 1); nextWS = 0; }
+          setCorrectStreak(0);
+          setWrongStreak(nextWS);
+          setLevel(nextLevel);
+          setOverlay('wrong');
+          setTimeout(() => next(nextLevel), 1000);
+        }
+      }
+
+      const screen = { ...s.screen, justifyContent: 'flex-start', paddingTop: '20px', gap: '10px' };
+
+      return (
+        <div style={screen}>
+          <Overlay type={overlay} correctMsg="כל הכבוד פלג!" />
+          <TopBar stars={totalStars} level={level} onBack={onBack} />
+          <EquationDisplay a={question.a} b={question.b} op={question.op} />
+          <AnswerButtons
+            answers={question.answers}
+            correctAnswer={question.answer}
+            onAnswer={handleAnswer}
+            disabled={answering}
+            qid={qid}
+            colors={GIRL_COLORS}
           />
         </div>
       );
@@ -363,33 +484,16 @@
           <h1 style={s.title}>מי משחק היום? 🎮</h1>
           <div style={{ display: 'flex', flexDirection: 'row', gap: 'clamp(20px, 5vw, 48px)', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
             <ProfileCard
-              emoji="🦕" label="הילד"
+              emoji="🦕" label="גולן"
               colors={{ bg: 'linear-gradient(145deg, #a8f08a, #f9f871)', border: '#7ecb50', shadow: 'rgba(126,203,80,0.45)', text: '#3a6b1a' }}
               onClick={() => onSelect('boy')}
             />
             <ProfileCard
-              emoji="👸" label="הילדה"
+              emoji="👸" label="פלג"
               colors={{ bg: 'linear-gradient(145deg, #ff85c2, #d966ff)', border: '#c44daa', shadow: 'rgba(196,77,170,0.45)', text: '#fff' }}
               onClick={() => onSelect('girl')}
             />
           </div>
-        </div>
-      );
-    }
-
-    /* ─── PlaceholderGame (girl — until her mode is built) ─── */
-    function PlaceholderGame({ onBack }) {
-      const back = {
-        marginTop: '12px', padding: '16px 36px', borderRadius: '50px',
-        border: 'none', background: 'rgba(255,255,255,0.25)', color: '#fff',
-        fontSize: '22px', fontFamily: 'inherit', fontWeight: 'bold',
-        cursor: 'pointer', minHeight: '80px', minWidth: '160px',
-      };
-      return (
-        <div style={{ ...s.screen, gap: '28px' }}>
-          <span style={{ fontSize: '100px', animation: 'pulse 1.8s ease-in-out infinite' }}>👸</span>
-          <p style={{ fontSize: 'clamp(22px, 5vw, 34px)', color: '#fff', fontWeight: 'bold' }}>שלום! המשחק בקרוב...</p>
-          <button style={back} onClick={onBack}>← חזור</button>
         </div>
       );
     }
@@ -400,7 +504,7 @@
       const back = () => setProfile(null);
       if (profile === null)  return <ProfileSelection onSelect={setProfile} />;
       if (profile === 'boy') return <CountingGame onBack={back} />;
-      return <PlaceholderGame onBack={back} />;
+      return <MathGame onBack={back} />;
     }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
