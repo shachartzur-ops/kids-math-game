@@ -101,18 +101,31 @@
     const GIRL_COLORS = ['#ff6eb4', '#c44dff', '#ff85c2', '#9b59b6'];
     const CONFETTI_COLORS = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c44dff','#ff9f43','#ff85c2','#a8f08a'];
 
-    const COUNT_LEVELS = { 1: { min:1, max:5 }, 2: { min:1, max:8 } };
+    const COUNT_LEVELS = {
+      1: { min:1, max:3  },
+      2: { min:1, max:5  },
+      3: { min:2, max:6  },
+      4: { min:3, max:8  },
+      5: { min:4, max:10 },
+    };
     const ADD_LEVELS   = {
-      3: { nMin:1, nMax:4, mMin:1, mMax:4, maxSum:8  },
-      4: { nMin:1, nMax:6, mMin:1, mMax:5, maxSum:10 },
-      5: { nMin:2, nMax:7, mMin:2, mMax:6, maxSum:12 },
+      6:  { nMin:1, nMax:3, mMin:1, mMax:3, maxSum:6  },
+      7:  { nMin:1, nMax:4, mMin:1, mMax:4, maxSum:8  },
+      8:  { nMin:2, nMax:5, mMin:1, mMax:4, maxSum:10 },
+      9:  { nMin:2, nMax:6, mMin:2, mMax:5, maxSum:12 },
+      10: { nMin:3, nMax:7, mMin:2, mMax:6, maxSum:14 },
     };
     const MATH_LEVELS = {
-      1: { min:1, max:5,  maxSum:10,  sub:false },
-      2: { min:1, max:10, maxSum:15,  sub:false },
-      3: { min:1, max:15, maxSum:20,  sub:false },
-      4: { min:1, max:20, maxSum:null, sub:true  },
-      5: { min:1, max:30, maxSum:null, sub:true  },
+      1:  { aMin:1, aMax:3, bMin:1, bMax:3, maxSum:5,  sub:false },
+      2:  { aMin:1, aMax:4, bMin:1, bMax:4, maxSum:7,  sub:false },
+      3:  { aMin:1, aMax:5, bMin:1, bMax:5, maxSum:9,  sub:false },
+      4:  { aMin:2, aMax:6, bMin:2, bMax:6, maxSum:11, sub:false },
+      5:  { aMin:3, aMax:8, bMin:2, bMax:7, maxSum:14, sub:false },
+      6:  { min:1, max:10, sub:true, minResult:2 },
+      7:  { min:1, max:15, sub:true, minResult:2 },
+      8:  { min:2, max:18, sub:true, minResult:1 },
+      9:  { min:3, max:22, sub:true, minResult:1 },
+      10: { min:5, max:30, sub:true, minResult:1 },
     };
     const EXTRA_ANIMALS = ['🐘','🦁','🐶','🐸','🐯','🦊','🐨','🦒'];
 
@@ -192,7 +205,7 @@
     }
 
     function generateCountQuestion(level) {
-      if (level <= 2) {
+      if (level <= 5) {
         const { min, max } = COUNT_LEVELS[level];
         const n = randInt(min, max);
         const ws = new Set();
@@ -209,14 +222,20 @@
     }
 
     function generateMathQuestion(level) {
-      const { min, max, maxSum, sub } = MATH_LEVELS[level];
+      const cfg = MATH_LEVELS[level];
       let a, b, op, answer;
-      if (sub && Math.random() < 0.5) {
-        a = randInt(min+1, max); b = randInt(min, a-1); op = '-'; answer = a - b;
+      if (cfg.sub) {
+        const { min, max, minResult } = cfg;
+        if (Math.random() < 0.5) {
+          a = randInt(min, max); b = randInt(min, max); op = '+'; answer = a + b;
+        } else {
+          do { a = randInt(min, max); b = randInt(min, max); } while (a - b < minResult);
+          op = '-'; answer = a - b;
+        }
       } else {
-        const aMax = maxSum ? Math.min(max, maxSum-min) : max;
-        a = randInt(min, aMax);
-        b = randInt(min, Math.max(min, maxSum ? Math.min(max, maxSum-a) : max));
+        const { aMin, aMax, bMin, bMax, maxSum } = cfg;
+        a = randInt(aMin, Math.min(aMax, maxSum - bMin));
+        b = randInt(bMin, Math.min(bMax, maxSum - a));
         op = '+'; answer = a + b;
       }
       const ws = new Set();
@@ -322,7 +341,7 @@
           <div style={{ display:'flex', alignItems:'center', gap:'4px', direction:'ltr', flexShrink:0 }}>
             <button style={lvlBtn(level<=1)} onClick={onLevelDown} disabled={level<=1}>−</button>
             <span style={{ fontSize:'clamp(13px,2.8vw,17px)', fontWeight:'bold', color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.3)', minWidth:'54px', textAlign:'center' }}>רמה {level}</span>
-            <button style={lvlBtn(level>=5)} onClick={onLevelUp} disabled={level>=5}>+</button>
+            <button style={lvlBtn(level>=10)} onClick={onLevelUp} disabled={level>=10}>+</button>
           </div>
           <span style={starsBadge}>⭐ {stars}</span>
         </div>
@@ -447,7 +466,7 @@
       }
 
       function handleLevelChange(delta) {
-        const nl = Math.max(1, Math.min(5, level + delta));
+        const nl = Math.max(1, Math.min(10, level + delta));
         if (nl === level) return;
         if (timerRef.current) clearTimeout(timerRef.current);
         setLevel(nl); setCorrectStreak(0); setWrongStreak(0);
@@ -461,7 +480,7 @@
         if (correct) {
           const newCS = correctStreak + 1;
           let nextLevel = level, nextCS = newCS;
-          if (newCS >= 3) { nextLevel = Math.min(5, level+1); nextCS = 0; }
+          if (newCS >= 3) { nextLevel = Math.min(10, level+1); nextCS = 0; }
           const didLevelUp = nextLevel > level;
           setTotalStars(n=>n+1); setCorrectStreak(nextCS); setWrongStreak(0); setLevel(nextLevel);
           spawnConfetti();
