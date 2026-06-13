@@ -347,7 +347,7 @@
     function EquationDisplay({ a, b, op }) {
       return (
         <div style={{ background:'rgba(255,255,255,0.18)', borderRadius:'28px', padding:'24px 40px', marginBottom:'20px', textAlign:'center' }}>
-          <span style={{ fontSize:'clamp(64px,14vw,96px)', fontWeight:'bold', color:'#fff', textShadow:'0 3px 12px rgba(0,0,0,0.25)', letterSpacing:'4px', lineHeight:1.1 }}>{a} {op} {b} = ?</span>
+          <span style={{ fontSize:'clamp(64px,14vw,96px)', fontWeight:'bold', color:'#fff', textShadow:'0 3px 12px rgba(0,0,0,0.25)', letterSpacing:'4px', lineHeight:1.1, direction:'ltr', unicodeBidi:'bidi-override' }}>{a} {op} {b} = ?</span>
         </div>
       );
     }
