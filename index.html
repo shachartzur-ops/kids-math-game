@@ -11,11 +11,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Varela Round', sans-serif;
@@ -49,13 +45,33 @@
       0%, 100% { transform: scale(1); }
       50%       { transform: scale(1.08); }
     }
+
+    @keyframes flashGreen {
+      0%   { background: #2ecc71; transform: scale(1.13); }
+      100% { background: #2ecc71; transform: scale(1); }
+    }
+
+    @keyframes flashRed {
+      0%   { background: #e74c3c; transform: scale(0.93); }
+      100% { background: #e74c3c; transform: scale(1); }
+    }
+
+    @keyframes overlayPop {
+      0%   { opacity: 0; transform: scale(0.5); }
+      65%  { transform: scale(1.12); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .flash-correct { animation: flashGreen 0.35s ease both !important; background: #2ecc71 !important; }
+    .flash-wrong   { animation: flashRed   0.35s ease both !important; background: #e74c3c !important; }
+    .overlay-pop   { animation: overlayPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useEffect } = React;
 
     /* ─── Shared styles ─── */
     const s = {
@@ -80,102 +96,280 @@
       },
     };
 
-    /* ─── ProfileCard ─── */
-    function ProfileCard({ emoji, label, colors, onClick }) {
-      const [hovered, setHovered] = useState(false);
+    /* ─── Game logic helpers ─── */
+    const LEVEL_RANGES = {
+      1: { min: 1, max: 5  },
+      2: { min: 1, max: 8  },
+      3: { min: 1, max: 10 },
+      4: { min: 2, max: 12 },
+      5: { min: 3, max: 15 },
+    };
 
-      const cardStyle = {
-        minWidth: '200px',
-        minHeight: '260px',
-        width: 'clamp(200px, 40vw, 260px)',
-        borderRadius: '28px',
-        background: colors.bg,
-        boxShadow: hovered
-          ? `0 16px 48px ${colors.shadow}, 0 4px 16px rgba(0,0,0,0.18)`
-          : `0 8px 28px ${colors.shadow}, 0 2px 8px rgba(0,0,0,0.12)`,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        transform: hovered ? 'scale(1.07)' : 'scale(1)',
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-        border: `3px solid ${colors.border}`,
-        padding: '24px 16px',
-        userSelect: 'none',
-        minHeight: '80px', // tablet tap target
+    const BOY_KEY = 'profile_boy';
+
+    function randInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function generateQuestion(level) {
+      const { min, max } = LEVEL_RANGES[level];
+      const n = randInt(min, max);
+      const wrongSet = new Set();
+      while (wrongSet.size < 2) {
+        const offset = randInt(1, 4) * (Math.random() < 0.5 ? 1 : -1);
+        const c = n + offset;
+        if (c > 0 && c !== n && !wrongSet.has(c)) wrongSet.add(c);
+      }
+      const answers = [n, ...wrongSet].sort(() => Math.random() - 0.5);
+      return { n, answers };
+    }
+
+    function loadProgress(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) return JSON.parse(raw);
+      } catch (_) {}
+      return { level: 1, totalStars: 0, correctStreak: 0, wrongStreak: 0 };
+    }
+
+    /* ─── TopBar ─── */
+    function TopBar({ stars, level, onBack }) {
+      const bar = {
+        width: '100%', maxWidth: '560px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: '14px', padding: '0 4px',
       };
-
-      const emojiStyle = {
-        fontSize: '90px',
-        lineHeight: 1,
-        display: 'block',
-        animation: 'bounce 1.6s ease-in-out infinite',
-        marginBottom: '18px',
+      const backBtn = {
+        padding: '10px 20px', borderRadius: '50px', border: 'none',
+        background: 'rgba(255,255,255,0.28)', color: '#fff',
+        fontSize: '18px', fontFamily: 'inherit', fontWeight: 'bold',
+        cursor: 'pointer', minHeight: '48px',
       };
+      const badge = {
+        fontSize: 'clamp(16px, 3.5vw, 22px)', fontWeight: 'bold', color: '#fff',
+        textShadow: '0 1px 4px rgba(0,0,0,0.3)',
+        background: 'rgba(255,255,255,0.18)', borderRadius: '20px', padding: '6px 14px',
+      };
+      return (
+        <div style={bar}>
+          <button style={backBtn} onClick={onBack}>← חזור</button>
+          <span style={badge}>⭐ {stars}</span>
+          <span style={badge}>רמה {level}</span>
+        </div>
+      );
+    }
 
-      const labelStyle = {
-        fontSize: 'clamp(22px, 5vw, 32px)',
-        fontWeight: 'bold',
-        color: colors.text,
-        textShadow: '0 1px 4px rgba(0,0,0,0.15)',
-        letterSpacing: '1px',
+    /* ─── EmojiGrid ─── */
+    function EmojiGrid({ n }) {
+      const fontSize = n <= 6 ? '52px' : n <= 10 ? '40px' : '32px';
+      const grid = {
+        display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
+        gap: '6px', maxWidth: '420px', margin: '0 auto 16px',
+        padding: '16px', background: 'rgba(255,255,255,0.15)',
+        borderRadius: '24px', minHeight: '110px', alignContent: 'center',
+      };
+      return (
+        <div style={grid}>
+          {Array.from({ length: n }).map((_, i) => (
+            <span key={i} style={{ fontSize, lineHeight: 1 }}>🦕</span>
+          ))}
+        </div>
+      );
+    }
+
+    /* ─── AnswerButton ─── */
+    const BTN_COLORS = ['#ff9f43', '#54a0ff', '#5f27cd'];
+
+    function AnswerButton({ value, colorIdx, isCorrect, onAnswer, disabled }) {
+      const [flashClass, setFlashClass] = useState('');
+
+      function handleClick() {
+        if (disabled) return;
+        setFlashClass(isCorrect ? 'flash-correct' : 'flash-wrong');
+        onAnswer(isCorrect);
+      }
+
+      const btn = {
+        minWidth: '80px', minHeight: '70px', borderRadius: '20px',
+        border: 'none', background: BTN_COLORS[colorIdx],
+        color: '#fff', fontSize: 'clamp(26px, 6vw, 38px)',
+        fontFamily: 'inherit', fontWeight: 'bold',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
+        opacity: disabled ? 0.85 : 1,
       };
 
       return (
+        <button style={btn} className={flashClass} onClick={handleClick}>
+          {value}
+        </button>
+      );
+    }
+
+    /* ─── AnswerButtons ─── */
+    function AnswerButtons({ answers, correctAnswer, onAnswer, disabled, qid }) {
+      const wrap = { display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '8px' };
+      return (
+        <div style={wrap}>
+          {answers.map((ans, i) => (
+            <AnswerButton
+              key={`${qid}-${i}`}
+              value={ans}
+              colorIdx={i}
+              isCorrect={ans === correctAnswer}
+              onAnswer={onAnswer}
+              disabled={disabled}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    /* ─── Overlay ─── */
+    function Overlay({ type }) {
+      if (!type) return null;
+      const overlay = {
+        position: 'fixed', inset: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        background: type === 'correct' ? 'rgba(46,204,113,0.72)' : 'rgba(231,76,60,0.70)',
+        zIndex: 100, backdropFilter: 'blur(4px)',
+      };
+      const text = {
+        fontSize: 'clamp(28px, 7vw, 52px)', fontWeight: 'bold',
+        color: '#fff', textShadow: '0 2px 10px rgba(0,0,0,0.3)',
+        fontFamily: 'Varela Round, sans-serif', marginTop: '12px',
+      };
+      return (
+        <div style={overlay}>
+          <div className="overlay-pop" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '90px', lineHeight: 1 }}>{type === 'correct' ? '🎉' : '😔'}</div>
+            <div style={text}>{type === 'correct' ? 'כל הכבוד!' : 'נסה שוב!'}</div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ─── CountingGame ─── */
+    function CountingGame({ onBack }) {
+      const init = loadProgress(BOY_KEY);
+      const [level,         setLevel]         = useState(init.level);
+      const [totalStars,    setTotalStars]     = useState(init.totalStars);
+      const [correctStreak, setCorrectStreak]  = useState(init.correctStreak);
+      const [wrongStreak,   setWrongStreak]    = useState(init.wrongStreak);
+      const [question,      setQuestion]       = useState(() => generateQuestion(init.level));
+      const [qid,           setQid]            = useState(0);
+      const [overlay,       setOverlay]        = useState(null);
+      const [answering,     setAnswering]      = useState(false);
+
+      useEffect(() => {
+        localStorage.setItem(BOY_KEY, JSON.stringify({ level, totalStars, correctStreak, wrongStreak }));
+      }, [level, totalStars, correctStreak, wrongStreak]);
+
+      function next(nextLevel) {
+        setQuestion(generateQuestion(nextLevel));
+        setQid(id => id + 1);
+        setOverlay(null);
+        setAnswering(false);
+      }
+
+      function handleAnswer(correct) {
+        if (answering) return;
+        setAnswering(true);
+
+        if (correct) {
+          const newCS = correctStreak + 1;
+          let nextLevel = level, nextCS = newCS;
+          if (newCS >= 3) { nextLevel = Math.min(5, level + 1); nextCS = 0; }
+          setTotalStars(s => s + 1);
+          setCorrectStreak(nextCS);
+          setWrongStreak(0);
+          setLevel(nextLevel);
+          setOverlay('correct');
+          setTimeout(() => next(nextLevel), 1500);
+        } else {
+          const newWS = wrongStreak + 1;
+          let nextLevel = level, nextWS = newWS;
+          if (newWS >= 2) { nextLevel = Math.max(1, level - 1); nextWS = 0; }
+          setCorrectStreak(0);
+          setWrongStreak(nextWS);
+          setLevel(nextLevel);
+          setOverlay('wrong');
+          setTimeout(() => next(nextLevel), 1000);
+        }
+      }
+
+      const screen = { ...s.screen, justifyContent: 'flex-start', paddingTop: '20px', gap: '10px' };
+      const question_text = {
+        fontSize: 'clamp(20px, 4.5vw, 30px)', fontWeight: 'bold',
+        color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.25)',
+        textAlign: 'center', margin: '4px 0 6px',
+      };
+
+      return (
+        <div style={screen}>
+          <Overlay type={overlay} />
+          <TopBar stars={totalStars} level={level} onBack={onBack} />
+          <EmojiGrid n={question.n} />
+          <p style={question_text}>כמה דינוזאורים יש?</p>
+          <AnswerButtons
+            answers={question.answers}
+            correctAnswer={question.n}
+            onAnswer={handleAnswer}
+            disabled={answering}
+            qid={qid}
+          />
+        </div>
+      );
+    }
+
+    /* ─── ProfileCard ─── */
+    function ProfileCard({ emoji, label, colors, onClick }) {
+      const [hovered, setHovered] = useState(false);
+      const card = {
+        minWidth: '200px', minHeight: '260px',
+        width: 'clamp(200px, 40vw, 260px)',
+        borderRadius: '28px', background: colors.bg,
+        boxShadow: hovered
+          ? `0 16px 48px ${colors.shadow}, 0 4px 16px rgba(0,0,0,0.18)`
+          : `0 8px 28px ${colors.shadow}, 0 2px 8px rgba(0,0,0,0.12)`,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer',
+        transform: hovered ? 'scale(1.07)' : 'scale(1)',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+        border: `3px solid ${colors.border}`, padding: '24px 16px', userSelect: 'none',
+      };
+      return (
         <div
-          style={cardStyle}
+          style={card}
           onClick={onClick}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
           onTouchStart={() => setHovered(true)}
           onTouchEnd={() => { setHovered(false); onClick(); }}
-          role="button"
-          tabIndex={0}
+          role="button" tabIndex={0}
           onKeyDown={(e) => e.key === 'Enter' && onClick()}
           aria-label={label}
         >
-          <span style={emojiStyle}>{emoji}</span>
-          <span style={labelStyle}>{label}</span>
+          <span style={{ fontSize: '90px', lineHeight: 1, display: 'block', animation: 'bounce 1.6s ease-in-out infinite', marginBottom: '18px' }}>{emoji}</span>
+          <span style={{ fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: 'bold', color: colors.text, textShadow: '0 1px 4px rgba(0,0,0,0.15)', letterSpacing: '1px' }}>{label}</span>
         </div>
       );
     }
 
     /* ─── ProfileSelection ─── */
     function ProfileSelection({ onSelect }) {
-      const cardsContainerStyle = {
-        display: 'flex',
-        flexDirection: 'row',
-        gap: 'clamp(20px, 5vw, 48px)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexWrap: 'wrap',
-      };
-
       return (
         <div style={s.screen}>
           <h1 style={s.title}>מי משחק היום? 🎮</h1>
-          <div style={cardsContainerStyle}>
+          <div style={{ display: 'flex', flexDirection: 'row', gap: 'clamp(20px, 5vw, 48px)', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
             <ProfileCard
-              emoji="🦕"
-              label="הילד"
-              colors={{
-                bg: 'linear-gradient(145deg, #a8f08a, #f9f871)',
-                border: '#7ecb50',
-                shadow: 'rgba(126,203,80,0.45)',
-                text: '#3a6b1a',
-              }}
+              emoji="🦕" label="הילד"
+              colors={{ bg: 'linear-gradient(145deg, #a8f08a, #f9f871)', border: '#7ecb50', shadow: 'rgba(126,203,80,0.45)', text: '#3a6b1a' }}
               onClick={() => onSelect('boy')}
             />
             <ProfileCard
-              emoji="👸"
-              label="הילדה"
-              colors={{
-                bg: 'linear-gradient(145deg, #ff85c2, #d966ff)',
-                border: '#c44daa',
-                shadow: 'rgba(196,77,170,0.45)',
-                text: '#fff',
-              }}
+              emoji="👸" label="הילדה"
+              colors={{ bg: 'linear-gradient(145deg, #ff85c2, #d966ff)', border: '#c44daa', shadow: 'rgba(196,77,170,0.45)', text: '#fff' }}
               onClick={() => onSelect('girl')}
             />
           </div>
@@ -183,75 +377,30 @@
       );
     }
 
-    /* ─── PlaceholderGame ─── */
-    function PlaceholderGame({ profile, onBack }) {
-      const isBoy = profile === 'boy';
-
-      const containerStyle = {
-        ...s.screen,
-        gap: '28px',
+    /* ─── PlaceholderGame (girl — until her mode is built) ─── */
+    function PlaceholderGame({ onBack }) {
+      const back = {
+        marginTop: '12px', padding: '16px 36px', borderRadius: '50px',
+        border: 'none', background: 'rgba(255,255,255,0.25)', color: '#fff',
+        fontSize: '22px', fontFamily: 'inherit', fontWeight: 'bold',
+        cursor: 'pointer', minHeight: '80px', minWidth: '160px',
       };
-
-      const emojiStyle = {
-        fontSize: '100px',
-        lineHeight: 1,
-        animation: 'pulse 1.8s ease-in-out infinite',
-        display: 'block',
-        textAlign: 'center',
-      };
-
-      const messageStyle = {
-        fontSize: 'clamp(22px, 5vw, 34px)',
-        color: '#fff',
-        textShadow: '0 2px 8px rgba(0,0,0,0.3)',
-        textAlign: 'center',
-        fontWeight: 'bold',
-      };
-
-      const backBtnStyle = {
-        marginTop: '12px',
-        padding: '16px 36px',
-        borderRadius: '50px',
-        border: 'none',
-        background: 'rgba(255,255,255,0.25)',
-        color: '#fff',
-        fontSize: '22px',
-        fontFamily: 'inherit',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        backdropFilter: 'blur(6px)',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-        minHeight: '80px',
-        minWidth: '160px',
-        transition: 'background 0.2s',
-        letterSpacing: '1px',
-      };
-
       return (
-        <div style={containerStyle}>
-          <span style={emojiStyle}>{isBoy ? '🦕' : '👸'}</span>
-          <p style={messageStyle}>שלום! המשחק בקרוב...</p>
-          <button
-            style={backBtnStyle}
-            onClick={onBack}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.4)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
-          >
-            ← חזור
-          </button>
+        <div style={{ ...s.screen, gap: '28px' }}>
+          <span style={{ fontSize: '100px', animation: 'pulse 1.8s ease-in-out infinite' }}>👸</span>
+          <p style={{ fontSize: 'clamp(22px, 5vw, 34px)', color: '#fff', fontWeight: 'bold' }}>שלום! המשחק בקרוב...</p>
+          <button style={back} onClick={onBack}>← חזור</button>
         </div>
       );
     }
 
     /* ─── App ─── */
     function App() {
-      const [profile, setProfile] = useState(null); // null | 'boy' | 'girl'
-
-      if (profile === null) {
-        return <ProfileSelection onSelect={setProfile} />;
-      }
-
-      return <PlaceholderGame profile={profile} onBack={() => setProfile(null)} />;
+      const [profile, setProfile] = useState(null);
+      const back = () => setProfile(null);
+      if (profile === null)  return <ProfileSelection onSelect={setProfile} />;
+      if (profile === 'boy') return <CountingGame onBack={back} />;
+      return <PlaceholderGame onBack={back} />;
     }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
